@@ -157,26 +157,71 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 		"name":    claims.Name,
 	})
 
-	// JWT 토큰을 쿠키로 설정 (보안 강화)
-	c.SetCookie(
-		"session_token", // 쿠키 이름
-		jwtToken,        // 쿠키 값
-		3600*24,         // 만료 시간 (24시간)
-		"/",             // 경로
-		"",              // 도메인 (현재 도메인)
-		false,           // HTTPS only (개발환경에서는 false)
-		true,            // HTTP only (XSS 방지)
-	)
+	// 디버깅: JWT 토큰 생성 확인
+	tokenPrefix := jwtToken
+	if len(jwtToken) > 20 {
+		tokenPrefix = jwtToken[:20]
+	}
+	logger.DebugWithContext(ctx, "JWT token generated", map[string]interface{}{
+		"token_length": len(jwtToken),
+		"token_prefix": tokenPrefix,
+	})
+
+	cookie := &http.Cookie{
+		Name:     "session_token",
+		Value:    jwtToken,
+		Path:     "/",
+		MaxAge:   3600, // 1시간
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	http.SetCookie(c.Writer, cookie)
+
+	// 디버깅 로그도 SameSite 정보를 포함하도록 수정합니다.
+	logger.DebugWithContext(ctx, "JWT token cookie set (HTTPS Secure)", map[string]interface{}{
+		"cookie_name":     cookie.Name,
+		"cookie_path":     cookie.Path,
+		"cookie_httponly": cookie.HttpOnly,
+		"cookie_secure":   cookie.Secure,
+		"cookie_samesite": "Lax",
+		"max_age":         cookie.MaxAge,
+		"redirect_url":    "/",
+	})
 
 	// 프론트엔드로 리디렉션 (쿠키 기반이므로 파라미터 불필요)
-	c.Redirect(http.StatusTemporaryRedirect, "/")
+	logger.DebugWithContext(ctx, "Redirecting to home page", map[string]any{
+		"redirect_url": "/",
+		"status_code":  http.StatusTemporaryRedirect,
+	})
+	c.Redirect(http.StatusFound, "/")
 }
 
 // HandleGetUser 사용자 정보 조회
 func (h *AuthHandler) HandleGetUser(c *gin.Context) {
+	// 디버깅: 모든 쿠키 확인
+	cookies := make(map[string]string)
+	for _, cookie := range c.Request.Cookies() {
+		value := cookie.Value
+		if len(value) > 20 {
+			value = value[:20] + "..."
+		}
+		cookies[cookie.Name] = value
+	}
+	logger.DebugWithContext(c.Request.Context(), "All cookies received", map[string]interface{}{
+		"cookies_count": len(c.Request.Cookies()),
+		"cookies":       cookies,
+		"user_agent":    c.Request.UserAgent(),
+		"referer":       c.Request.Referer(),
+	})
+
 	// 쿠키에서 JWT 토큰 가져오기
 	tokenString, err := c.Cookie("session_token")
 	if err != nil {
+		logger.DebugWithContext(c.Request.Context(), "Session token cookie not found", map[string]interface{}{
+			"error": err.Error(),
+		})
 		utils.Response.Error(c, models.ErrSessionNotFound.WithDetails("Session token cookie not found"))
 		return
 	}

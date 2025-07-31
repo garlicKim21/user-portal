@@ -1,6 +1,8 @@
 // 포털 애플리케이션 메인 로직
 let currentSession = null;
 
+
+
 // DOM 요소들
 const loginBtn = document.getElementById('loginBtn');
 const consoleBtn = document.getElementById('consoleBtn');
@@ -15,11 +17,6 @@ const success = document.getElementById('success');
 document.addEventListener('DOMContentLoaded', function() {
     checkUserStatus();
 });
-
-// URL에서 세션 파라미터 확인 (JWT 기반으로 변경되어 더 이상 사용하지 않음)
-// function getSessionFromURL() {
-//     return null;
-// }
 
 // 사용자 상태 확인
 async function checkUserStatus() {

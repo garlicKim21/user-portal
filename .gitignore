@@ -122,4 +122,7 @@ portal-backend/portal-backend.exe
 
 # 포털 프론트엔드 빌드 파일
 portal-frontend/dist/
-portal-frontend/build/ 
+portal-frontend/build/
+
+# ===== 배포 파일 (민감한 정보 포함) =====
+deployment/ 

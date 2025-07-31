@@ -1,13 +1,10 @@
-# 빌드 스테이지
-FROM golang:1.21-alpine AS builder
-
-# 필요한 패키지 설치
-RUN apk add --no-cache git ca-certificates tzdata
+# Go 애플리케이션을 위한 Dockerfile
+FROM golang:1.24-alpine AS builder
 
 # 작업 디렉토리 설정
 WORKDIR /app
 
-# go.mod 및 go.sum 복사
+# Go 모듈 파일 복사
 COPY go.mod go.sum ./
 
 # 의존성 다운로드
@@ -16,34 +13,23 @@ RUN go mod download
 # 소스 코드 복사
 COPY . .
 
-# 크로스 플랫폼 빌드 (AMD64)
+# 애플리케이션 빌드 (AMD64 크로스 컴파일)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o main .
 
-# 실행 스테이지
+# 최종 이미지
 FROM alpine:latest
 
-# 필요한 패키지 설치
-RUN apk --no-cache add ca-certificates tzdata
+# ca-certificates 설치 (HTTPS 요청용)
+RUN apk --no-cache add ca-certificates
 
-# 사용자 생성
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
-
-# 작업 디렉토리 설정
-WORKDIR /app
+WORKDIR /root/
 
 # 빌드된 바이너리 복사
 COPY --from=builder /app/main .
 
-# 템플릿 및 정적 파일 복사
-COPY --from=builder /app/templates ./templates
+# 정적 파일 및 템플릿 복사
 COPY --from=builder /app/static ./static
-
-# 소유권 변경
-RUN chown -R appuser:appgroup /app
-
-# 사용자 전환
-USER appuser
+COPY --from=builder /app/templates ./templates
 
 # 포트 노출
 EXPOSE 8080

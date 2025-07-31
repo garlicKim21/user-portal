@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -119,16 +120,16 @@ func main() {
 		api.GET("/launch-console", consoleHandler.HandleLaunchConsole)
 	}
 
-	// 정적 파일 서빙 (프론트엔드용)
-	r.Static("/static", "./static")
-	r.LoadHTMLGlob("templates/*")
-
-	// 루트 경로
-	r.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"title": "Portal Demo - Web Console PoC",
+	// 헬스체크 엔드포인트 (인증 불필요)
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":    "healthy",
+			"timestamp": time.Now().UTC(),
 		})
 	})
+
+	// API 전용 서버 (프론트엔드 분리)
+	// 정적 파일 서빙 제거 - 프론트엔드는 별도 서비스로 분리
 
 	logger.InfoWithContext(context.TODO(), "Starting HTTP server", map[string]interface{}{
 		"port":    port,
