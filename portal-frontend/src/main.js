@@ -1,6 +1,4 @@
 // 포털 애플리케이션 메인 로직
-
-// 포털 애플리케이션 메인 로직
 let currentSession = null;
 
 // DOM 요소들
@@ -18,30 +16,26 @@ document.addEventListener('DOMContentLoaded', function() {
     checkUserStatus();
 });
 
-// URL에서 세션 파라미터 확인
-function getSessionFromURL() {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('session');
-}
+// URL에서 세션 파라미터 확인 (JWT 기반으로 변경되어 더 이상 사용하지 않음)
+// function getSessionFromURL() {
+//     return null;
+// }
 
 // 사용자 상태 확인
 async function checkUserStatus() {
-    const session = getSessionFromURL();
-    if (session) {
-        currentSession = session;
-        try {
-            const response = await fetch(`/api/user?session=${session}`);
-            if (response.ok) {
-                const userData = await response.json();
-                showUserInfo(userData.user_id);
-            } else {
-                showLoginSection();
-            }
-        } catch (error) {
-            console.error('Error checking user status:', error);
+    try {
+        // JWT 기반 세션 확인 (쿠키에서 자동으로 전송됨)
+        const response = await fetch('/api/user', {
+            credentials: 'include' // 쿠키 포함
+        });
+        if (response.ok) {
+            const userData = await response.json();
+            showUserInfo(userData.user_id);
+        } else {
             showLoginSection();
         }
-    } else {
+    } catch (error) {
+        console.error('Error checking user status:', error);
         showLoginSection();
     }
 }
@@ -52,11 +46,17 @@ function login() {
 }
 
 // 로그아웃
-function logout() {
-    currentSession = null;
-    showLoginSection();
-    // URL에서 세션 파라미터 제거
-    window.history.replaceState({}, document.title, window.location.pathname);
+async function logout() {
+    try {
+        // 쿠키 삭제를 위한 서버 요청 (추후 구현 필요)
+        document.cookie = 'session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        showLoginSection();
+        // URL에서 세션 파라미터 제거
+        window.history.replaceState({}, document.title, window.location.pathname);
+    } catch (error) {
+        console.error('Logout error:', error);
+        showLoginSection();
+    }
 }
 
 // 사용자 정보 표시
@@ -77,15 +77,12 @@ function showLoginSection() {
 
 // 웹 콘솔 실행
 async function launchConsole() {
-    if (!currentSession) {
-        showError('No session found. Please login again.');
-        return;
-    }
-
     showLoading();
 
     try {
-        const response = await fetch(`/api/launch-console?session=${currentSession}`);
+        const response = await fetch('/api/launch-console', {
+            credentials: 'include' // 쿠키 포함
+        });
         
         if (response.ok) {
             const data = await response.json();

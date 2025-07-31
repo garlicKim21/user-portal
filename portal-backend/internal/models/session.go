@@ -9,11 +9,14 @@ type Session struct {
 	RefreshToken string    `json:"refresh_token"`
 	UserID       string    `json:"user_id"`
 	ExpiresAt    time.Time `json:"expires_at"`
+	State        string    `json:"state"`      // CSRF 보호용 state
+	CreatedAt    time.Time `json:"created_at"` // 세션 생성 시간
 }
 
 // LaunchConsoleResponse 웹 콘솔 실행 응답
 type LaunchConsoleResponse struct {
-	URL string `json:"url"`
+	URL        string `json:"url"`
+	ResourceID string `json:"resource_id"`
 }
 
 // UserInfo 사용자 정보

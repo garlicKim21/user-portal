@@ -81,10 +81,12 @@ func (p *OIDCProvider) VerifyIDToken(ctx context.Context, rawIDToken string) (*o
 }
 
 // GenerateRandomString 랜덤 문자열 생성
-func GenerateRandomString(length int) string {
+func GenerateRandomString(length int) (string, error) {
 	b := make([]byte, length)
-	rand.Read(b)
-	return base64.URLEncoding.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate random string: %v", err)
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 // TokenClaims 토큰 클레임 구조체

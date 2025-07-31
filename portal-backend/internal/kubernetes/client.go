@@ -41,25 +41,89 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-// GenerateKubeconfig kubeconfig 생성
+// GenerateKubeconfig OIDC 설정이 포함된 kubeconfig 생성
 func GenerateKubeconfig(idToken string) string {
-	// 실제 구현에서는 OIDC 설정이 포함된 kubeconfig를 생성
-	// 여기서는 간단한 예시만 제공
+	// 환경변수에서 쿠버네티스 클러스터 정보 가져오기
+	clusterServer := os.Getenv("K8S_CLUSTER_SERVER")
+	if clusterServer == "" {
+		clusterServer = "https://kubernetes.default.svc"
+	}
+
+	clusterCA := os.Getenv("K8S_CLUSTER_CA")
+	if clusterCA == "" {
+		clusterCA = "" // 기본값은 빈 문자열 (insecure-skip-tls-verify 사용)
+	}
+
+	oidcIssuerURL := os.Getenv("OIDC_ISSUER_URL")
+	oidcClientID := os.Getenv("OIDC_CLIENT_ID")
+
+	// OIDC 설정이 있는 경우 OIDC 기반 kubeconfig 생성
+	if oidcIssuerURL != "" && oidcClientID != "" {
+		var clusterConfig string
+		if clusterCA != "" {
+			clusterConfig = fmt.Sprintf(`    server: %s
+    certificate-authority-data: %s`, clusterServer, clusterCA)
+		} else {
+			clusterConfig = fmt.Sprintf(`    server: %s
+    insecure-skip-tls-verify: true`, clusterServer)
+		}
+
+		return fmt.Sprintf(`apiVersion: v1
+kind: Config
+clusters:
+- name: kubernetes
+  cluster:
+%s
+contexts:
+- name: oidc-context
+  context:
+    cluster: kubernetes
+    user: oidc-user
+current-context: oidc-context
+users:
+- name: oidc-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: kubectl
+      args:
+      - oidc-login
+      - get-token
+      - --oidc-issuer-url=%s
+      - --oidc-client-id=%s
+      - --oidc-extra-scope=profile
+      - --oidc-extra-scope=email
+      - --token=%s
+      env: null
+      provideClusterInfo: false
+`, clusterConfig, oidcIssuerURL, oidcClientID, idToken)
+	}
+
+	// OIDC 설정이 없는 경우 토큰 기반 kubeconfig 생성 (Fallback)
+	var clusterConfig string
+	if clusterCA != "" {
+		clusterConfig = fmt.Sprintf(`    server: %s
+    certificate-authority-data: %s`, clusterServer, clusterCA)
+	} else {
+		clusterConfig = fmt.Sprintf(`    server: %s
+    insecure-skip-tls-verify: true`, clusterServer)
+	}
+
 	return fmt.Sprintf(`apiVersion: v1
 kind: Config
 clusters:
-- name: cluster
+- name: kubernetes
   cluster:
-    server: https://kubernetes.default.svc
+%s
 contexts:
-- name: context
+- name: token-context
   context:
-    cluster: cluster
-    user: user
-current-context: context
+    cluster: kubernetes
+    user: token-user
+current-context: token-context
 users:
-- name: user
+- name: token-user
   user:
     token: %s
-`, idToken)
-} 
+`, clusterConfig, idToken)
+}
