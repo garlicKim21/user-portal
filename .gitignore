@@ -1,0 +1,124 @@
+# ===== Go 관련 파일 =====
+# Go 빌드 바이너리
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+portal-backend
+portal-backend.exe
+
+# Go 테스트 바이너리
+*.test
+*.out
+
+# Go 커버리지 파일
+coverage.out
+coverage.html
+
+# Go 벤치마크 파일
+*.bench
+
+# Go 프로파일 파일
+*.prof
+*.pprof
+
+# Go 모듈 캐시
+go.sum
+
+# ===== Node.js 관련 파일 =====
+# 의존성
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 빌드 출력
+dist/
+dist-ssr/
+build/
+*.local
+
+# ===== 환경 변수 파일 =====
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ===== 로그 파일 =====
+*.log
+logs/
+*.log.*
+
+# ===== 임시 파일 =====
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# ===== 시스템 파일 =====
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ===== IDE/에디터 파일 =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== 쿠버네티스 관련 =====
+# kubeconfig 파일 (개인 설정)
+kubeconfig
+*.kubeconfig
+
+# ===== 인증서 및 키 파일 =====
+*.key
+*.pem
+*.crt
+*.csr
+*.p12
+*.pfx
+
+# ===== Docker 관련 =====
+.dockerignore
+
+# ===== 백업 파일 =====
+*.bak
+*.backup
+*.old
+
+# ===== 압축 파일 =====
+*.zip
+*.tar.gz
+*.rar
+
+# ===== 데이터베이스 파일 =====
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== 캐시 파일 =====
+.cache/
+*.cache
+
+# ===== 문서 변환 파일 =====
+pdf_content.txt
+
+# ===== 특정 프로젝트 파일 =====
+# 포털 백엔드 빌드 파일
+portal-backend/portal-backend
+portal-backend/portal-backend.exe
+
+# 포털 프론트엔드 빌드 파일
+portal-frontend/dist/
+portal-frontend/build/ 
