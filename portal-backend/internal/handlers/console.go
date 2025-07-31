@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -180,11 +181,8 @@ func (h *ConsoleHandler) startCleanupRoutine() {
 	ticker := time.NewTicker(5 * time.Minute) // 5분마다 정리
 	defer ticker.Stop()
 
-	for {
-		select {
-		case <-ticker.C:
-			h.cleanupExpiredResources()
-		}
+	for range ticker.C {
+		h.cleanupExpiredResources()
 	}
 }
 
@@ -207,7 +205,7 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 		if resource.CreatedAt.Before(cutoff) {
 			delete(h.resources, id)
 			cleanedCount++
-			logger.DebugWithContext(nil, "Removed expired resource from memory", map[string]interface{}{
+			logger.DebugWithContext(context.TODO(), "Removed expired resource from memory", map[string]interface{}{
 				"resource_id": id,
 				"user_id":     resource.UserID,
 				"created_at":  resource.CreatedAt,
@@ -216,7 +214,7 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 	}
 
 	if cleanedCount > 0 {
-		logger.InfoWithContext(nil, "Memory cleanup completed", map[string]interface{}{
+		logger.InfoWithContext(context.TODO(), "Memory cleanup completed", map[string]interface{}{
 			"cleaned_resources": cleanedCount,
 		})
 	}

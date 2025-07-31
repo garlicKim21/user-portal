@@ -148,7 +148,7 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 	}
 
 	// 인증 성공 로그 (사용자 ID를 컨텍스트에 추가)
-	ctx = context.WithValue(c.Request.Context(), "user_id", claims.Subject)
+	ctx = context.WithValue(c.Request.Context(), logger.UserIDKey, claims.Subject)
 	c.Set("user_id", claims.Subject)
 
 	logger.InfoWithContext(ctx, "User authenticated successfully", map[string]interface{}{
@@ -193,7 +193,7 @@ func (h *AuthHandler) HandleGetUser(c *gin.Context) {
 
 	// 사용자 ID를 컨텍스트에 설정
 	c.Set("user_id", claims.UserID)
-	ctx := context.WithValue(c.Request.Context(), "user_id", claims.UserID)
+	ctx := context.WithValue(c.Request.Context(), logger.UserIDKey, claims.UserID)
 	c.Request = c.Request.WithContext(ctx)
 
 	utils.Response.Success(c, models.UserInfo{

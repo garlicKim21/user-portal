@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"strings"
@@ -24,7 +25,7 @@ func main() {
 	if port == "" {
 		port = "8080"
 	}
-	logger.InfoWithContext(nil, "Server configuration loaded", map[string]interface{}{
+	logger.InfoWithContext(context.TODO(), "Server configuration loaded", map[string]interface{}{
 		"port": port,
 	})
 
@@ -129,7 +130,7 @@ func main() {
 		})
 	})
 
-	logger.InfoWithContext(nil, "Starting HTTP server", map[string]interface{}{
+	logger.InfoWithContext(context.TODO(), "Starting HTTP server", map[string]interface{}{
 		"port":    port,
 		"version": "1.0.0",
 	})
