@@ -5,7 +5,8 @@
 *.dll
 *.so
 *.dylib
-portal-backend
+# portal-backend 전체를 무시하지 않고 빌드된 바이너리만 무시
+# (구체적인 규칙은 하단 118-120줄 참조)
 portal-backend.exe
 
 # Go 테스트 바이너리
