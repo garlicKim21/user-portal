@@ -1,0 +1,115 @@
+# B 클러스터에 적용할 RBAC 설정
+# OIDC로 인증된 사용자들이 kubectl 명령을 실행할 수 있도록 권한 부여
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: web-console-user-role
+rules:
+# 일반적인 읽기 권한
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "namespaces", "nodes"]
+  verbs: ["get", "list", "watch"]
+  
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses", "networkpolicies"]
+  verbs: ["get", "list", "watch"]
+
+# 제한적인 쓰기 권한 (필요에 따라 조정)
+- apiGroups: [""]
+  resources: ["pods/log", "pods/exec"]
+  verbs: ["get", "create"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: web-console-users-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: web-console-user-role
+subjects:
+# LDAP 사용자들을 여기에 추가
+- kind: User
+  name: testuser
+  apiGroup: rbac.authorization.k8s.io
+- kind: User  
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# 관리자 사용자를 위한 전체 권한
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: web-console-admins-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: User
+  name: admin
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# 웹 콘솔 Pod들이 사용할 네임스페이스
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: web-console
+  labels:
+    purpose: web-console-pods
+
+---
+# 웹 콘솔 Pod들을 위한 네트워크 정책 (보안 강화)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-console-network-policy
+  namespace: web-console
+spec:
+  podSelector:
+    matchLabels:
+      app: web-console
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # A 클러스터에서의 접근 허용
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: default
+    ports:
+    - protocol: TCP
+      port: 7681
+  # 외부 사용자 접근 허용 (Ingress를 통해)
+  - from: []
+    ports:
+    - protocol: TCP
+      port: 7681
+  egress:
+  # DNS 조회 허용
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+  # API 서버 접근 허용
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 6443
+  # 일반적인 아웃바운드 트래픽 허용
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443

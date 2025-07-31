@@ -235,8 +235,12 @@ func (c *Client) CreateConsoleResources(userID, idToken string) (*ConsoleResourc
 	}
 
 	// 콘솔 URL 생성 (실제로는 Ingress나 LoadBalancer를 통해 외부 접근 가능한 URL)
-	resource.ConsoleURL = fmt.Sprintf("http://%s.%s.svc.cluster.local:%d",
-		resource.ServiceName, resource.Namespace, config.ServicePort)
+	// 웹 콘솔 외부 접근 URL 생성 (B 클러스터의 Ingress를 통해)
+	baseURL := os.Getenv("WEB_CONSOLE_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://console.basphere.dev"
+	}
+	resource.ConsoleURL = fmt.Sprintf("%s/%s", baseURL, resourceID)
 
 	return resource, nil
 }
@@ -247,7 +251,7 @@ func (c *Client) WaitForPodReady(podName, namespace string, timeout time.Duratio
 	defer cancel()
 
 	return wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		pod, err := c.Clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		pod, err := c.TargetClientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -271,7 +275,7 @@ func (c *Client) DeleteConsoleResources(resource *ConsoleResource) error {
 	deletePolicy := metav1.DeletePropagationForeground
 
 	// Service 삭제
-	err := c.Clientset.CoreV1().Services(resource.Namespace).Delete(ctx, resource.ServiceName, metav1.DeleteOptions{
+	err := c.TargetClientset.CoreV1().Services(resource.Namespace).Delete(ctx, resource.ServiceName, metav1.DeleteOptions{
 		PropagationPolicy: &deletePolicy,
 	})
 	if err != nil {

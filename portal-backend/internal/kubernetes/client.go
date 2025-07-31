@@ -9,9 +9,10 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// Client 쿠버네티스 클라이언트 래퍼
+// Client 쿠버네티스 클라이언트 래퍼 (다중 클러스터 지원)
 type Client struct {
-	Clientset *kubernetes.Clientset
+	Clientset       *kubernetes.Clientset // 로컬 클러스터 (A)
+	TargetClientset *kubernetes.Clientset // 타겟 클러스터 (B) - 웹 콘솔 생성용
 }
 
 // NewClient 새로운 쿠버네티스 클라이언트 생성
