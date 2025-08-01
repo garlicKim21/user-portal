@@ -15,20 +15,30 @@ const success = document.getElementById('success');
 
 // 페이지 로드 시 사용자 상태 확인
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('페이지 로드됨');
+    checkCookies(); // 쿠키 디버깅
     checkUserStatus();
 });
 
 // 사용자 상태 확인
 async function checkUserStatus() {
     try {
+        // 쿠키 디버깅
+        console.log('현재 쿠키들:', document.cookie);
+        
         // JWT 기반 세션 확인 (쿠키에서 자동으로 전송됨)
         const response = await fetch('/api/user', {
             credentials: 'include' // 쿠키 포함
         });
+        
+        console.log('API 응답 상태:', response.status);
+        
         if (response.ok) {
             const userData = await response.json();
+            console.log('사용자 데이터:', userData);
             showUserInfo(userData.user_id);
         } else {
+            console.log('API 응답 실패:', response.status, response.statusText);
             showLoginSection();
         }
     } catch (error) {
@@ -123,6 +133,30 @@ function showError(message) {
 function showSuccess(message) {
     success.textContent = message;
     success.classList.add('show');
+}
+
+// 쿠키 확인 함수
+function checkCookies() {
+    console.log('=== 쿠키 디버깅 ===');
+    console.log('전체 쿠키:', document.cookie);
+    
+    const cookies = document.cookie.split(';');
+    cookies.forEach(cookie => {
+        const [name, value] = cookie.trim().split('=');
+        console.log(`쿠키: ${name} = ${value}`);
+    });
+    
+    // session_token 쿠키 확인
+    const sessionToken = getCookie('session_token');
+    console.log('session_token 쿠키:', sessionToken ? '존재함' : '없음');
+}
+
+// 쿠키 값 가져오기
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
 }
 
 // 이벤트 리스너 등록

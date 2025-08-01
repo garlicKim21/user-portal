@@ -63,6 +63,11 @@ func main() {
 	// Gin 라우터 설정
 	r := gin.New()
 
+	err = r.SetTrustedProxies([]string{"192.168.1.1", "127.0.0.1"})
+	if err != nil {
+		logger.Fatal("Failed to set trusted proxies", err)
+	}
+
 	// 미들웨어 설정
 	r.Use(middleware.RecoveryLoggingMiddleware())
 	r.Use(middleware.RequestLoggingMiddleware())
