@@ -81,72 +81,16 @@ function showLoginPage() {
     dashboardPage.style.display = 'none';
 }
 
-// 주석처리
-// // 라우팅 처리
-// function handleRouting() {
-//     const path = window.location.pathname;
-//     console.log('현재 경로:', path);
-    
-//     if (path === '/dashboard') {
-//         showDashboardPage();
-//     } else {
-//         showLoginPage();
-//     }
-// }
-
-// // 대시보드 페이지 표시
-// function showDashboardPage() {
-//     loginPage.style.display = 'none';
-//     dashboardPage.style.display = 'block';
-//     checkUserStatus();
-// }
-
-// // 로그인 페이지 표시
-// function showLoginPage() {
-//     loginPage.style.display = 'block';
-//     dashboardPage.style.display = 'none';
-//     checkUserStatus();
-// }
-
-// // 사용자 상태 확인
-// async function checkUserStatus() {
-//     try {
-//         // 쿠키 디버깅
-//         console.log('현재 쿠키들:', document.cookie);
-        
-//         // JWT 기반 세션 확인 (쿠키에서 자동으로 전송됨)
-//         const response = await fetch('/api/user', {
-//             credentials: 'include' // 쿠키 포함
-//         });
-        
-//         console.log('API 응답 상태:', response.status);
-        
-//         if (response.ok) {
-//             const userData = await response.json();
-//             console.log('사용자 데이터:', userData);
-//             showUserInfo(userData.user_id);
-//         } else {
-//             console.log('API 응답 실패:', response.status, response.statusText);
-//             showLoginSection();
-//         }
-//     } catch (error) {
-//         console.error('Error checking user status:', error);
-//         showLoginSection();
-//     }
-// }
-
 // 로그인
 function login() {
     window.location.href = '/api/login';
 }
 
 // 로그아웃
-// 로그아웃
 async function logout() {
     try {
-        // 백엔드의 로그아웃 엔드포인트를 호출하여 서버 측에서 쿠키를 삭제합니다.
         const response = await fetch('/api/logout', {
-            method: 'POST', // 로그아웃은 상태를 변경하므로 POST가 적합합니다.
+            method: 'POST',
         });
 
         if (response.ok) {
@@ -157,7 +101,6 @@ async function logout() {
     } catch (error) {
         console.error('Logout request error:', error);
     } finally {
-        // 서버 요청 성공 여부와 관계없이 클라이언트는 로그인 페이지로 이동합니다.
         window.location.href = '/';
     }
 }
