@@ -227,7 +227,7 @@ func (h *AuthHandler) HandleGetUser(c *gin.Context) {
 	})
 }
 
-// GetSessionFromJWT JWT에서 세션 정보 조회
+// GetSession JWT에서 세션 정보 조회
 func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
 	// 쿠키에서 JWT 토큰 가져오기
 	tokenString, err := c.Cookie("portal-session")
@@ -256,22 +256,19 @@ func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
 
 // HandleLogout 로그아웃 처리
 func (h *AuthHandler) HandleLogout(c *gin.Context) {
-	// 클라이언트 측의 쿠키를 삭제하도록 응답 헤더를 설정합니다.
-	// MaxAge를 -1로 설정하면 브라우저가 즉시 쿠키를 삭제합니다.
 	if sessionID, err := c.Cookie("portal-session"); err == nil {
 		h.sessionStore.DeleteSession(sessionID)
 	}
 
 	c.SetCookie(
-		"portal-session", // 삭제할 쿠키 이름
-		"",               // 값은 비워둡니다.
-		-1,               // MaxAge -1
-		"/",              // Path
-		"",               // Domain
-		true,             // Secure
-		true,             // HttpOnly
+		"portal-session",
+		"",
+		-1,
+		"/",
+		"",
+		true,
+		true,
 	)
 
-	// 성공적으로 로그아웃되었음을 응답합니다.
 	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
 }
