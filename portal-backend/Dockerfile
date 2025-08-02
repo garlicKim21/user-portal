@@ -27,10 +27,6 @@ WORKDIR /root/
 # 빌드된 바이너리 복사
 COPY --from=builder /app/main .
 
-# 정적 파일 및 템플릿 복사
-COPY --from=builder /app/static ./static
-COPY --from=builder /app/templates ./templates
-
 # 포트 노출
 EXPOSE 8080
 

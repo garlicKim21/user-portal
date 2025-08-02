@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 
 # Test Environment Secrets
-test.env
+portal-backend/test.env

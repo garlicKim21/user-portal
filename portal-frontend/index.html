@@ -198,25 +198,34 @@
 </head>
 <body>
     <div id="app">
-        <div class="logo">🔒</div>
-        <h1>Portal Demo</h1>
-        <p class="subtitle">Web Console PoC - Secure Kubernetes Terminal Access</p>
-        
-        <div id="user-info" class="user-info">
-            <div class="user-name" id="user-name"></div>
-            <button id="consoleBtn">Open Web Terminal</button>
-            <button id="logoutBtn" class="secondary">Logout</button>
+        <!-- 로그인 페이지 -->
+        <div id="login-page" class="page">
+            <div class="logo">🔒</div>
+            <h1>Portal Demo</h1>
+            <p class="subtitle">Web Console PoC - Secure Kubernetes Terminal Access</p>
+            <button id="loginBtn">Login</button>
         </div>
         
-        <button id="loginBtn">Login</button>
-        
-        <div id="loading" class="loading">
-            <div class="spinner"></div>
-            <p>Opening web terminal...</p>
+        <!-- 대시보드 페이지 -->
+        <div id="dashboard-page" class="page" style="display: none;">
+            <div class="logo">🔒</div>
+            <h1>Portal Dashboard</h1>
+            <p class="subtitle">Welcome to your secure portal</p>
+            
+            <div id="user-info" class="user-info">
+                <div class="user-name" id="user-name"></div>
+                <button id="consoleBtn">Open Web Terminal</button>
+                <button id="logoutBtn" class="secondary">Logout</button>
+            </div>
+            
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Opening web terminal...</p>
+            </div>
+            
+            <div id="error" class="error"></div>
+            <div id="success" class="success"></div>
         </div>
-        
-        <div id="error" class="error"></div>
-        <div id="success" class="success"></div>
     </div>
     <script type="module" src="/src/main.js"></script>
 </body>

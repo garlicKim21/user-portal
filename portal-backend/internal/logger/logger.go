@@ -37,19 +37,19 @@ const (
 
 // LogEntry 구조화된 로그 엔트리
 type LogEntry struct {
-	Timestamp  time.Time              `json:"timestamp"`
-	Level      LogLevel               `json:"level"`
-	Message    string                 `json:"message"`
-	RequestID  string                 `json:"request_id,omitempty"`
-	UserID     string                 `json:"user_id,omitempty"`
-	Method     string                 `json:"method,omitempty"`
-	Path       string                 `json:"path,omitempty"`
-	StatusCode int                    `json:"status_code,omitempty"`
-	Duration   string                 `json:"duration,omitempty"`
-	Error      string                 `json:"error,omitempty"`
-	File       string                 `json:"file,omitempty"`
-	Line       int                    `json:"line,omitempty"`
-	Extra      map[string]interface{} `json:"extra,omitempty"`
+	Timestamp  time.Time      `json:"timestamp"`
+	Level      LogLevel       `json:"level"`
+	Message    string         `json:"message"`
+	RequestID  string         `json:"request_id,omitempty"`
+	UserID     string         `json:"user_id,omitempty"`
+	Method     string         `json:"method,omitempty"`
+	Path       string         `json:"path,omitempty"`
+	StatusCode int            `json:"status_code,omitempty"`
+	Duration   string         `json:"duration,omitempty"`
+	Error      string         `json:"error,omitempty"`
+	File       string         `json:"file,omitempty"`
+	Line       int            `json:"line,omitempty"`
+	Extra      map[string]any `json:"extra,omitempty"`
 }
 
 // Logger 구조화된 로거
@@ -112,7 +112,7 @@ func getCallerInfo(skip int) (string, int) {
 }
 
 // log 실제 로그 출력
-func (l *Logger) log(level LogLevel, message string, ctx context.Context, extra map[string]interface{}) {
+func (l *Logger) log(level LogLevel, message string, ctx context.Context, extra map[string]any) {
 	if !l.shouldLog(level) {
 		return
 	}
@@ -156,7 +156,7 @@ func (l *Logger) Debug(message string) {
 }
 
 // DebugWithContext 컨텍스트가 포함된 디버그 로그
-func (l *Logger) DebugWithContext(ctx context.Context, message string, extra map[string]interface{}) {
+func (l *Logger) DebugWithContext(ctx context.Context, message string, extra map[string]any) {
 	l.log(DEBUG, message, ctx, extra)
 }
 
@@ -166,7 +166,7 @@ func (l *Logger) Info(message string) {
 }
 
 // InfoWithContext 컨텍스트가 포함된 정보 로그
-func (l *Logger) InfoWithContext(ctx context.Context, message string, extra map[string]interface{}) {
+func (l *Logger) InfoWithContext(ctx context.Context, message string, extra map[string]any) {
 	l.log(INFO, message, ctx, extra)
 }
 
@@ -176,7 +176,7 @@ func (l *Logger) Warn(message string) {
 }
 
 // WarnWithContext 컨텍스트가 포함된 경고 로그
-func (l *Logger) WarnWithContext(ctx context.Context, message string, extra map[string]interface{}) {
+func (l *Logger) WarnWithContext(ctx context.Context, message string, extra map[string]any) {
 	l.log(WARN, message, ctx, extra)
 }
 
@@ -190,9 +190,9 @@ func (l *Logger) Error(message string, err error) {
 }
 
 // ErrorWithContext 컨텍스트가 포함된 에러 로그
-func (l *Logger) ErrorWithContext(ctx context.Context, message string, err error, extra map[string]interface{}) {
+func (l *Logger) ErrorWithContext(ctx context.Context, message string, err error, extra map[string]any) {
 	if extra == nil {
-		extra = make(map[string]interface{})
+		extra = make(map[string]any)
 	}
 	if err != nil {
 		extra["error_detail"] = err.Error()
@@ -245,7 +245,7 @@ func Debug(message string) {
 	GetLogger().Debug(message)
 }
 
-func DebugWithContext(ctx context.Context, message string, extra map[string]interface{}) {
+func DebugWithContext(ctx context.Context, message string, extra map[string]any) {
 	GetLogger().DebugWithContext(ctx, message, extra)
 }
 
@@ -253,7 +253,7 @@ func Info(message string) {
 	GetLogger().Info(message)
 }
 
-func InfoWithContext(ctx context.Context, message string, extra map[string]interface{}) {
+func InfoWithContext(ctx context.Context, message string, extra map[string]any) {
 	GetLogger().InfoWithContext(ctx, message, extra)
 }
 
@@ -261,7 +261,7 @@ func Warn(message string) {
 	GetLogger().Warn(message)
 }
 
-func WarnWithContext(ctx context.Context, message string, extra map[string]interface{}) {
+func WarnWithContext(ctx context.Context, message string, extra map[string]any) {
 	GetLogger().WarnWithContext(ctx, message, extra)
 }
 
@@ -269,7 +269,7 @@ func Error(message string, err error) {
 	GetLogger().Error(message, err)
 }
 
-func ErrorWithContext(ctx context.Context, message string, err error, extra map[string]interface{}) {
+func ErrorWithContext(ctx context.Context, message string, err error, extra map[string]any) {
 	GetLogger().ErrorWithContext(ctx, message, err, extra)
 }
 

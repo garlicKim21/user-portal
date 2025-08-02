@@ -37,9 +37,9 @@ func NewConsoleHandler(k8sClient *kubernetes.Client, authHandler *AuthHandler) *
 // HandleLaunchConsole 웹 콘솔 Pod 생성
 func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 	// JWT에서 세션 정보 가져오기
-	session, err := h.authHandler.GetSessionFromJWT(c)
+	session, err := h.authHandler.GetSession(c)
 	if err != nil {
-		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT", map[string]interface{}{
+		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT", map[string]any{
 			"error": err.Error(),
 		})
 		if apiErr, ok := err.(*models.APIError); ok {
@@ -51,13 +51,13 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 	}
 
 	// 웹 콘솔 리소스 생성 (UUID 기반 이름으로 충돌 방지)
-	logger.InfoWithContext(c.Request.Context(), "Creating console resources", map[string]interface{}{
+	logger.InfoWithContext(c.Request.Context(), "Creating console resources", map[string]any{
 		"user_id": session.UserID,
 	})
 
 	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, session.IDToken)
 	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Failed to create console resources", err, map[string]interface{}{
+		logger.ErrorWithContext(c.Request.Context(), "Failed to create console resources", err, map[string]any{
 			"user_id": session.UserID,
 		})
 		utils.Response.Error(c, models.ErrPodCreationFailed.WithDetails("User: "+session.UserID).WithCause(err))
@@ -67,7 +67,7 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 	// 생성된 리소스 추적 저장
 	h.resources[resource.ID] = resource
 
-	logger.InfoWithContext(c.Request.Context(), "Web console created successfully", map[string]interface{}{
+	logger.InfoWithContext(c.Request.Context(), "Web console created successfully", map[string]any{
 		"user_id":      session.UserID,
 		"resource_id":  resource.ID,
 		"console_url":  resource.ConsoleURL,
@@ -84,9 +84,9 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 // HandleDeleteConsole 웹 콘솔 리소스 삭제
 func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	// JWT에서 세션 정보 가져오기
-	session, err := h.authHandler.GetSessionFromJWT(c)
+	session, err := h.authHandler.GetSession(c)
 	if err != nil {
-		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT for delete operation", map[string]interface{}{
+		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT for delete operation", map[string]any{
 			"error": err.Error(),
 		})
 		if apiErr, ok := err.(*models.APIError); ok {
@@ -117,14 +117,14 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	}
 
 	// 리소스 삭제
-	logger.InfoWithContext(c.Request.Context(), "Deleting console resources", map[string]interface{}{
+	logger.InfoWithContext(c.Request.Context(), "Deleting console resources", map[string]any{
 		"user_id":     session.UserID,
 		"resource_id": resourceID,
 	})
 
 	err = h.k8sClient.DeleteConsoleResources(resource)
 	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Failed to delete console resources", err, map[string]interface{}{
+		logger.ErrorWithContext(c.Request.Context(), "Failed to delete console resources", err, map[string]any{
 			"user_id":     session.UserID,
 			"resource_id": resourceID,
 		})
@@ -135,7 +135,7 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	// 메모리에서 제거
 	delete(h.resources, resourceID)
 
-	logger.InfoWithContext(c.Request.Context(), "Web console deleted successfully", map[string]interface{}{
+	logger.InfoWithContext(c.Request.Context(), "Web console deleted successfully", map[string]any{
 		"user_id":     session.UserID,
 		"resource_id": resourceID,
 	})
@@ -148,9 +148,9 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 // HandleListConsoles 사용자의 웹 콘솔 목록 조회
 func (h *ConsoleHandler) HandleListConsoles(c *gin.Context) {
 	// JWT에서 세션 정보 가져오기
-	session, err := h.authHandler.GetSessionFromJWT(c)
+	session, err := h.authHandler.GetSession(c)
 	if err != nil {
-		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT for list operation", map[string]interface{}{
+		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT for list operation", map[string]any{
 			"error": err.Error(),
 		})
 		if apiErr, ok := err.(*models.APIError); ok {
@@ -205,7 +205,7 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 		if resource.CreatedAt.Before(cutoff) {
 			delete(h.resources, id)
 			cleanedCount++
-			logger.DebugWithContext(context.TODO(), "Removed expired resource from memory", map[string]interface{}{
+			logger.DebugWithContext(context.TODO(), "Removed expired resource from memory", map[string]any{
 				"resource_id": id,
 				"user_id":     resource.UserID,
 				"created_at":  resource.CreatedAt,
@@ -214,7 +214,7 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 	}
 
 	if cleanedCount > 0 {
-		logger.InfoWithContext(context.TODO(), "Memory cleanup completed", map[string]interface{}{
+		logger.InfoWithContext(context.TODO(), "Memory cleanup completed", map[string]any{
 			"cleaned_resources": cleanedCount,
 		})
 	}

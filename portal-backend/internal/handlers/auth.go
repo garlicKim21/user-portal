@@ -17,36 +17,29 @@ import (
 // AuthHandler 인증 핸들러
 type AuthHandler struct {
 	oidcProvider *auth.OIDCProvider
-	jwtManager   *auth.JWTManager
-	sessions     map[string]*models.Session // 임시 state 저장용 (JWT 도입 후 state만 사용)
+	sessionStore *auth.SessionStore
+	tempSessions map[string]*models.Session
 }
 
 // NewAuthHandler 새로운 인증 핸들러 생성
 func NewAuthHandler(oidcProvider *auth.OIDCProvider) (*AuthHandler, error) {
-	jwtManager, err := auth.NewJWTManager()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create JWT manager: %v", err)
-	}
-
 	return &AuthHandler{
 		oidcProvider: oidcProvider,
-		jwtManager:   jwtManager,
-		sessions:     make(map[string]*models.Session),
+		sessionStore: auth.NewSessionStore(), // 세션 저장소 초기화
+		tempSessions: make(map[string]*models.Session),
 	}, nil
 }
 
 // HandleLogin 로그인 처리
 func (h *AuthHandler) HandleLogin(c *gin.Context) {
-	// CSRF 보호를 위한 state 생성
 	state, err := auth.GenerateRandomString(32)
 	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Failed to generate state", err, nil)
+		logger.ErrorWithContext(c.Request.Context(), "Failed to generate state", err, map[string]any{})
 		utils.Response.InternalError(c, fmt.Errorf("failed to generate security token: %w", err))
 		return
 	}
 
-	// 세션에 state 저장 (실제로는 Redis나 DB 사용 권장)
-	h.sessions[state] = &models.Session{
+	h.tempSessions[state] = &models.Session{
 		State:     state,
 		CreatedAt: time.Now(),
 	}
@@ -54,7 +47,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	// OAuth2 인증 URL 생성
 	authURL := h.oidcProvider.GetAuthURL(state)
 
-	logger.InfoWithContext(c.Request.Context(), "Redirecting to OAuth2 provider", map[string]interface{}{
+	logger.InfoWithContext(c.Request.Context(), "Redirecting to OAuth2 provider", map[string]any{
 		"auth_url": authURL,
 		"state":    state,
 	})
@@ -65,13 +58,11 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 func (h *AuthHandler) HandleCallback(c *gin.Context) {
 	ctx := context.Background()
 
-	// 에러 체크
 	if errParam := c.Query("error"); errParam != "" {
 		utils.Response.Error(c, models.ErrInvalidCredentials.WithDetails("OAuth error: "+errParam))
 		return
 	}
 
-	// Authorization code 가져오기
 	code := c.Query("code")
 	state := c.Query("state")
 
@@ -80,34 +71,29 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 		return
 	}
 
-	// State 검증 및 보안 강화
-	stateSession, exists := h.sessions[state]
+	stateSession, exists := h.tempSessions[state]
 	if !exists {
 		utils.Response.Error(c, models.ErrInvalidCredentials.WithDetails("Invalid or expired state parameter"))
 		return
 	}
 
-	// State 만료 시간 확인 (5분)
 	if time.Since(stateSession.CreatedAt) > 5*time.Minute {
-		delete(h.sessions, state) // 만료된 state 정리
+		delete(h.tempSessions, state)
 		utils.Response.Error(c, models.ErrTokenExpired.WithDetails("State parameter expired"))
 		return
 	}
 
-	// 사용된 state 즉시 삭제 (재사용 방지)
-	delete(h.sessions, state)
+	delete(h.tempSessions, state)
 
-	// 토큰 교환
 	token, err := h.oidcProvider.ExchangeCode(ctx, code)
 	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Token exchange failed", err, map[string]interface{}{
+		logger.ErrorWithContext(c.Request.Context(), "Token exchange failed", err, map[string]any{
 			"state": state,
 		})
 		utils.Response.Error(c, models.ErrInvalidCredentials.WithDetails("Failed to exchange authorization code").WithCause(err))
 		return
 	}
 
-	// ID Token 검증
 	rawIDToken, ok := token.Extra("id_token").(string)
 	if !ok {
 		utils.Response.Error(c, models.ErrTokenInvalid.WithDetails("ID token not found in OAuth response"))
@@ -116,23 +102,19 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 
 	idToken, err := h.oidcProvider.VerifyIDToken(ctx, rawIDToken)
 	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "ID token verification failed", err, nil)
+		logger.ErrorWithContext(c.Request.Context(), "ID token verification failed", err, map[string]any{})
 		utils.Response.Error(c, models.ErrTokenInvalid.WithDetails("ID token verification failed").WithCause(err))
 		return
 	}
 
-	// 사용자 정보 추출
 	var claims auth.TokenClaims
 	if err := idToken.Claims(&claims); err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Failed to parse ID token claims", err, nil)
+		logger.ErrorWithContext(c.Request.Context(), "Failed to parse ID token claims", err, map[string]any{})
 		utils.Response.Error(c, models.ErrTokenInvalid.WithDetails("Failed to parse token claims").WithCause(err))
 		return
 	}
 
-	// 세션 정보는 JWT 토큰에 포함되므로 별도 저장 불필요
-
-	// JWT 토큰 생성
-	jwtToken, err := h.jwtManager.GenerateToken(
+	sessionID, err := h.sessionStore.CreateSession(
 		claims.Subject,
 		token.AccessToken,
 		rawIDToken,
@@ -140,67 +122,66 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 		token.Expiry,
 	)
 	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Failed to generate JWT token", err, map[string]interface{}{
+		logger.ErrorWithContext(c.Request.Context(), "Failed to generate JWT token", err, map[string]any{
 			"user_id": claims.Subject,
 		})
 		utils.Response.InternalError(c, fmt.Errorf("failed to generate session token: %w", err))
 		return
 	}
 
-	// 인증 성공 로그 (사용자 ID를 컨텍스트에 추가)
 	ctx = context.WithValue(c.Request.Context(), logger.UserIDKey, claims.Subject)
 	c.Set("user_id", claims.Subject)
 
-	logger.InfoWithContext(ctx, "User authenticated successfully", map[string]interface{}{
-		"user_id": claims.Subject,
-		"email":   claims.Email,
-		"name":    claims.Name,
-	})
-
-	// 디버깅: JWT 토큰 생성 확인
-	tokenPrefix := jwtToken
-	if len(jwtToken) > 20 {
-		tokenPrefix = jwtToken[:20]
-	}
-	logger.DebugWithContext(ctx, "JWT token generated", map[string]interface{}{
-		"token_length": len(jwtToken),
-		"token_prefix": tokenPrefix,
+	logger.InfoWithContext(ctx, "User authenticated successfully", map[string]any{
+		"user_id":    claims.Subject,
+		"email":      claims.Email,
+		"name":       claims.Name,
+		"session_id": sessionID,
 	})
 
 	cookie := &http.Cookie{
-		Name:     "session_token",
-		Value:    jwtToken,
+		Name:     "portal-session",
+		Value:    sessionID,
 		Path:     "/",
-		MaxAge:   3600, // 1시간
+		Domain:   "",
+		MaxAge:   3600,
 		Secure:   true,
 		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
+		SameSite: http.SameSiteNoneMode,
 	}
+
+	logger.DebugWithContext(ctx, "Setting session cookie", map[string]any{
+		"session_id":    sessionID,
+		"cookie_size":   len(sessionID),
+		"cookie_name":   cookie.Name,
+		"cookie_secure": cookie.Secure,
+		"samesite":      "None",
+	})
 
 	http.SetCookie(c.Writer, cookie)
 
-	// 디버깅 로그도 SameSite 정보를 포함하도록 수정합니다.
-	logger.DebugWithContext(ctx, "JWT token cookie set (HTTPS Secure)", map[string]interface{}{
-		"cookie_name":     cookie.Name,
-		"cookie_path":     cookie.Path,
-		"cookie_httponly": cookie.HttpOnly,
-		"cookie_secure":   cookie.Secure,
-		"cookie_samesite": "Lax",
-		"max_age":         cookie.MaxAge,
-		"redirect_url":    "/",
-	})
+	// setCookieHeader := c.Writer.Header().Get("Set-Cookie")
+	// logger.DebugWithContext(ctx, "Set-Cookie header value", map[string]any{
+	// 	"set_cookie_header": setCookieHeader,
+	// })
 
-	// 프론트엔드로 리디렉션 (쿠키 기반이므로 파라미터 불필요)
-	logger.DebugWithContext(ctx, "Redirecting to home page", map[string]any{
-		"redirect_url": "/",
-		"status_code":  http.StatusTemporaryRedirect,
-	})
-	c.Redirect(http.StatusFound, "/")
+	// logger.DebugWithContext(ctx, "Redirecting to dashboard", map[string]any{
+	// 	"redirect_url": "/dashboard",
+	// 	"status_code":  http.StatusFound,
+	// })
+
+	c.Redirect(http.StatusFound, "/dashboard")
 }
 
 // HandleGetUser 사용자 정보 조회
 func (h *AuthHandler) HandleGetUser(c *gin.Context) {
-	// 디버깅: 모든 쿠키 확인
+	logger.DebugWithContext(c.Request.Context(), "Request headers", map[string]any{
+		"user_agent": c.Request.UserAgent(),
+		"referer":    c.Request.Referer(),
+		"origin":     c.Request.Header.Get("Origin"),
+		"host":       c.Request.Host,
+	})
+
 	cookies := make(map[string]string)
 	for _, cookie := range c.Request.Cookies() {
 		value := cookie.Value
@@ -209,17 +190,16 @@ func (h *AuthHandler) HandleGetUser(c *gin.Context) {
 		}
 		cookies[cookie.Name] = value
 	}
-	logger.DebugWithContext(c.Request.Context(), "All cookies received", map[string]interface{}{
+
+	logger.DebugWithContext(c.Request.Context(), "All cookies received", map[string]any{
 		"cookies_count": len(c.Request.Cookies()),
 		"cookies":       cookies,
-		"user_agent":    c.Request.UserAgent(),
-		"referer":       c.Request.Referer(),
 	})
 
-	// 쿠키에서 JWT 토큰 가져오기
-	tokenString, err := c.Cookie("session_token")
+	// 새로운 쿠키명으로 JWT 토큰 가져오기
+	tokenString, err := c.Cookie("portal-session")
 	if err != nil {
-		logger.DebugWithContext(c.Request.Context(), "Session token cookie not found", map[string]interface{}{
+		logger.DebugWithContext(c.Request.Context(), "Session token cookie not found", map[string]any{
 			"error": err.Error(),
 		})
 		utils.Response.Error(c, models.ErrSessionNotFound.WithDetails("Session token cookie not found"))
@@ -227,9 +207,9 @@ func (h *AuthHandler) HandleGetUser(c *gin.Context) {
 	}
 
 	// JWT 토큰 검증
-	claims, err := h.jwtManager.ValidateToken(tokenString)
+	claims, err := h.sessionStore.GetSession(tokenString)
 	if err != nil {
-		logger.WarnWithContext(c.Request.Context(), "Invalid JWT token received", map[string]interface{}{
+		logger.WarnWithContext(c.Request.Context(), "Invalid JWT token received", map[string]any{
 			"error": err.Error(),
 		})
 		utils.Response.Error(c, models.ErrTokenInvalid.WithDetails("Session token validation failed").WithCause(err))
@@ -248,15 +228,15 @@ func (h *AuthHandler) HandleGetUser(c *gin.Context) {
 }
 
 // GetSessionFromJWT JWT에서 세션 정보 조회
-func (h *AuthHandler) GetSessionFromJWT(c *gin.Context) (*models.Session, error) {
+func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
 	// 쿠키에서 JWT 토큰 가져오기
-	tokenString, err := c.Cookie("session_token")
+	tokenString, err := c.Cookie("portal-session")
 	if err != nil {
 		return nil, models.ErrSessionNotFound.WithDetails("Session token cookie not found")
 	}
 
 	// JWT 토큰 검증
-	claims, err := h.jwtManager.ValidateToken(tokenString)
+	claims, err := h.sessionStore.GetSession(tokenString)
 	if err != nil {
 		return nil, models.ErrTokenInvalid.WithDetails("Session token validation failed").WithCause(err)
 	}
@@ -268,8 +248,30 @@ func (h *AuthHandler) GetSessionFromJWT(c *gin.Context) (*models.Session, error)
 		RefreshToken: claims.RefreshToken,
 		UserID:       claims.UserID,
 		ExpiresAt:    claims.ExpiresAt,
-		CreatedAt:    claims.RegisteredClaims.IssuedAt.Time,
+		CreatedAt:    claims.CreatedAt,
 	}
 
 	return session, nil
+}
+
+// HandleLogout 로그아웃 처리
+func (h *AuthHandler) HandleLogout(c *gin.Context) {
+	// 클라이언트 측의 쿠키를 삭제하도록 응답 헤더를 설정합니다.
+	// MaxAge를 -1로 설정하면 브라우저가 즉시 쿠키를 삭제합니다.
+	if sessionID, err := c.Cookie("portal-session"); err == nil {
+		h.sessionStore.DeleteSession(sessionID)
+	}
+
+	c.SetCookie(
+		"portal-session", // 삭제할 쿠키 이름
+		"",               // 값은 비워둡니다.
+		-1,               // MaxAge -1
+		"/",              // Path
+		"",               // Domain
+		true,             // Secure
+		true,             // HttpOnly
+	)
+
+	// 성공적으로 로그아웃되었음을 응답합니다.
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
 }

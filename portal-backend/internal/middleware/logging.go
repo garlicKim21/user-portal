@@ -49,7 +49,7 @@ func RequestLoggingMiddleware() gin.HandlerFunc {
 		// 에러가 있는 경우 추가 로깅
 		if len(c.Errors) > 0 {
 			for _, err := range c.Errors {
-				logger.ErrorWithContext(ctx, "Request processing error", err.Err, map[string]interface{}{
+				logger.ErrorWithContext(ctx, "Request processing error", err.Err, map[string]any{
 					"error_type": err.Type,
 					"meta":       err.Meta,
 				})
@@ -58,7 +58,7 @@ func RequestLoggingMiddleware() gin.HandlerFunc {
 
 		// 느린 요청 경고 (2초 이상)
 		if duration > 2*time.Second {
-			logger.WarnWithContext(ctx, "Slow request detected", map[string]interface{}{
+			logger.WarnWithContext(ctx, "Slow request detected", map[string]any{
 				"duration":    duration.String(),
 				"method":      c.Request.Method,
 				"path":        c.Request.URL.Path,
@@ -92,7 +92,7 @@ func ErrorLoggingMiddleware() gin.HandlerFunc {
 			ctx := c.Request.Context()
 
 			for _, err := range c.Errors {
-				logger.ErrorWithContext(ctx, "Unhandled error occurred", err.Err, map[string]interface{}{
+				logger.ErrorWithContext(ctx, "Unhandled error occurred", err.Err, map[string]any{
 					"error_type": err.Type,
 					"meta":       err.Meta,
 					"method":     c.Request.Method,
@@ -108,7 +108,7 @@ func RecoveryLoggingMiddleware() gin.HandlerFunc {
 	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
 		ctx := c.Request.Context()
 
-		logger.ErrorWithContext(ctx, "Panic recovered", nil, map[string]interface{}{
+		logger.ErrorWithContext(ctx, "Panic recovered", nil, map[string]any{
 			"panic":   recovered,
 			"method":  c.Request.Method,
 			"path":    c.Request.URL.Path,

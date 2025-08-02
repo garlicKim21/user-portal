@@ -4,6 +4,7 @@ import "time"
 
 // Session 사용자 세션 정보
 type Session struct {
+	SessionID    string    `json:"session_id"`
 	AccessToken  string    `json:"access_token"`
 	IDToken      string    `json:"id_token"`
 	RefreshToken string    `json:"refresh_token"`

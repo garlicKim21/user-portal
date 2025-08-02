@@ -22,6 +22,8 @@ FROM nginx:alpine
 # 빌드된 파일을 Nginx로 복사
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+COPY nginx.conf /etc/nginx/conf.d/app.conf
+
 # 포트 노출
 EXPOSE 80
 
