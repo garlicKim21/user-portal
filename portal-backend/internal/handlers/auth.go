@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"portal-backend/internal/auth"
+	"portal-backend/internal/kubernetes"
 	"portal-backend/internal/logger"
 	"portal-backend/internal/models"
 	"portal-backend/internal/utils"
@@ -21,14 +23,16 @@ type AuthHandler struct {
 	oidcProvider *auth.OIDCProvider
 	sessionStore *auth.SessionStore
 	tempSessions map[string]*models.Session
+	k8sClient    *kubernetes.Client
 }
 
 // NewAuthHandler 새로운 인증 핸들러 생성
-func NewAuthHandler(oidcProvider *auth.OIDCProvider) (*AuthHandler, error) {
+func NewAuthHandler(oidcProvider *auth.OIDCProvider, k8sClient *kubernetes.Client) (*AuthHandler, error) {
 	return &AuthHandler{
 		oidcProvider: oidcProvider,
 		sessionStore: auth.NewSessionStore(), // 세션 저장소 초기화
 		tempSessions: make(map[string]*models.Session),
+		k8sClient:    k8sClient,
 	}, nil
 }
 
@@ -253,13 +257,32 @@ func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
 // HandleLogout 로그아웃 처리
 func (h *AuthHandler) HandleLogout(c *gin.Context) {
 	var idTokenHint string
+	var userID string
 	sessionID, err := c.Cookie("portal-session")
 	if err == nil {
 		session, sessionErr := h.sessionStore.GetSession(sessionID)
 		if sessionErr == nil {
 			idTokenHint = session.IDToken
+			userID = session.UserID
 		}
 		h.sessionStore.DeleteSession(sessionID)
+	}
+
+	// 사용자 관련 쿠버네티스 리소스 정리
+	if userID != "" && h.k8sClient != nil {
+		logger.InfoWithContext(c.Request.Context(), "Cleaning up user resources on logout", map[string]any{
+			"user_id": userID,
+		})
+		err := h.cleanupUserResources(userID)
+		if err != nil {
+			logger.ErrorWithContext(c.Request.Context(), "Failed to cleanup user resources", err, map[string]any{
+				"user_id": userID,
+			})
+		} else {
+			logger.InfoWithContext(c.Request.Context(), "Successfully cleaned up user resources", map[string]any{
+				"user_id": userID,
+			})
+		}
 	}
 
 	http.SetCookie(c.Writer, &http.Cookie{
@@ -295,4 +318,100 @@ func (h *AuthHandler) HandleLogout(c *gin.Context) {
 		"message":    "Local session cleared. Redirect to Keycloak for full logout.",
 		"logout_url": logoutURL.String(),
 	})
+}
+
+// cleanupUserResources 사용자 관련 쿠버네티스 리소스 정리
+func (h *AuthHandler) cleanupUserResources(userID string) error {
+	namespace := os.Getenv("CONSOLE_NAMESPACE")
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	ctx := context.Background()
+	labelSelector := fmt.Sprintf("app=web-console,user=%s", userID)
+
+	logger.InfoWithContext(ctx, "Starting resource cleanup", map[string]any{
+		"user_id":        userID,
+		"namespace":      namespace,
+		"label_selector": labelSelector,
+	})
+
+	// 1. Deployment 삭제
+	deployments, err := h.k8sClient.Clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		logger.ErrorWithContext(ctx, "Failed to list deployments for cleanup", err, map[string]any{
+			"user_id": userID,
+		})
+	} else {
+		for _, deployment := range deployments.Items {
+			err := h.k8sClient.Clientset.AppsV1().Deployments(namespace).Delete(ctx, deployment.Name, metav1.DeleteOptions{})
+			if err != nil {
+				logger.ErrorWithContext(ctx, "Failed to delete deployment", err, map[string]any{
+					"user_id":         userID,
+					"deployment_name": deployment.Name,
+				})
+			} else {
+				logger.InfoWithContext(ctx, "Successfully deleted deployment", map[string]any{
+					"user_id":         userID,
+					"deployment_name": deployment.Name,
+				})
+			}
+		}
+	}
+
+	// 2. Service 삭제
+	services, err := h.k8sClient.Clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		logger.ErrorWithContext(ctx, "Failed to list services for cleanup", err, map[string]any{
+			"user_id": userID,
+		})
+	} else {
+		for _, service := range services.Items {
+			err := h.k8sClient.Clientset.CoreV1().Services(namespace).Delete(ctx, service.Name, metav1.DeleteOptions{})
+			if err != nil {
+				logger.ErrorWithContext(ctx, "Failed to delete service", err, map[string]any{
+					"user_id":      userID,
+					"service_name": service.Name,
+				})
+			} else {
+				logger.InfoWithContext(ctx, "Successfully deleted service", map[string]any{
+					"user_id":      userID,
+					"service_name": service.Name,
+				})
+			}
+		}
+	}
+
+	// 3. Secret 삭제
+	secrets, err := h.k8sClient.Clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		logger.ErrorWithContext(ctx, "Failed to list secrets for cleanup", err, map[string]any{
+			"user_id": userID,
+		})
+	} else {
+		for _, secret := range secrets.Items {
+			err := h.k8sClient.Clientset.CoreV1().Secrets(namespace).Delete(ctx, secret.Name, metav1.DeleteOptions{})
+			if err != nil {
+				logger.ErrorWithContext(ctx, "Failed to delete secret", err, map[string]any{
+					"user_id":     userID,
+					"secret_name": secret.Name,
+				})
+			} else {
+				logger.InfoWithContext(ctx, "Successfully deleted secret", map[string]any{
+					"user_id":     userID,
+					"secret_name": secret.Name,
+				})
+			}
+		}
+	}
+
+	// 참고: PVC는 히스토리 보존을 위해 삭제하지 않음
+
+	return nil
 }

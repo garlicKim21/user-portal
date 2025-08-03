@@ -43,7 +43,7 @@ func main() {
 	logger.Info("Kubernetes client initialized successfully")
 
 	logger.Info("Initializing handlers")
-	authHandler, err := handlers.NewAuthHandler(oidcProvider)
+	authHandler, err := handlers.NewAuthHandler(oidcProvider, k8sClient)
 	if err != nil {
 		logger.Fatal("Failed to create auth handler", err)
 	}

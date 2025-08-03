@@ -2,16 +2,47 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: web-terminal-test
+  labels:
+    app: web-terminal-test
 spec:
   containers:
   - name: web-terminal
-    image: projectgreenist/web-terminal:0.1.1
+    image: projectgreenist/web-terminal:0.2.2  # 🔥 간소화된 최종 이미지
     imagePullPolicy: Always
-    command: ["sleep", "infinity"]
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 250m
-      memory: 256Mi
+    command: ["ttyd"]  # 🔥 실제 웹 터미널 시작
+    args: 
+    - "--port"
+    - "8080"
+    - "--interface"
+    - "0.0.0.0"
+    - "--writable"
+    - "--max-clients"
+    - "3"
+    - "bash"
+    ports:
+    - containerPort: 8080
+      name: http
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+---
+# 웹 터미널 접속용 서비스
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-terminal-test-service
+  labels:
+    app: web-terminal-test
+spec:
+  selector:
+    app: web-terminal-test
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP

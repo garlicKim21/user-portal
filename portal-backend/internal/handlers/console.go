@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"portal-backend/internal/auth"
 	"portal-backend/internal/kubernetes"
 	"portal-backend/internal/logger"
 	"portal-backend/internal/models"
@@ -50,12 +51,35 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 		return
 	}
 
+	// 사용자 그룹 정보 확인 및 로깅
+	userGroups, err := auth.ExtractUserGroups(session.IDToken)
+	if err != nil {
+		logger.WarnWithContext(c.Request.Context(), "Failed to extract user groups", map[string]any{
+			"user_id": session.UserID,
+			"error":   err.Error(),
+		})
+	} else {
+		logger.InfoWithContext(c.Request.Context(), "User groups extracted", map[string]any{
+			"user_id":  session.UserID,
+			"username": userGroups.Username,
+			"groups":   userGroups.Groups,
+			"role":     userGroups.GetUserRole(),
+		})
+	}
+
 	// 웹 콘솔 리소스 생성 (UUID 기반 이름으로 충돌 방지)
 	logger.InfoWithContext(c.Request.Context(), "Creating console resources", map[string]any{
 		"user_id": session.UserID,
+		"role": func() string {
+			if userGroups != nil {
+				return userGroups.GetUserRole()
+			} else {
+				return "unknown"
+			}
+		}(),
 	})
 
-	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, session.IDToken)
+	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, session.IDToken, session.RefreshToken)
 	if err != nil {
 		logger.ErrorWithContext(c.Request.Context(), "Failed to create console resources", err, map[string]any{
 			"user_id": session.UserID,
@@ -68,11 +92,11 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 	h.resources[resource.ID] = resource
 
 	logger.InfoWithContext(c.Request.Context(), "Web console created successfully", map[string]any{
-		"user_id":      session.UserID,
-		"resource_id":  resource.ID,
-		"console_url":  resource.ConsoleURL,
-		"pod_name":     resource.PodName,
-		"service_name": resource.ServiceName,
+		"user_id":         session.UserID,
+		"resource_id":     resource.ID,
+		"console_url":     resource.ConsoleURL,
+		"deployment_name": resource.DeploymentName,
+		"service_name":    resource.ServiceName,
 	})
 
 	utils.Response.SuccessWithMessage(c, "Web console created successfully", models.LaunchConsoleResponse{

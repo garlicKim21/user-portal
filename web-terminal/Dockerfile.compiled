@@ -1,0 +1,61 @@
+# Multi-stage build: 컴파일 단계와 실행 단계 분리
+# Stage 1: ttyd 컴파일 단계
+FROM alpine:3.18 as builder
+
+# 컴파일 도구 설치
+RUN apk update && apk add --no-cache \
+    build-base \
+    cmake \
+    git \
+    json-c-dev \
+    libwebsockets-dev
+
+# ttyd 소스 다운로드 및 컴파일
+RUN git clone https://github.com/tsl0922/ttyd.git && \
+    cd ttyd && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make
+
+# Stage 2: 실행 이미지 (경량)
+FROM alpine:3.18
+
+# 실행에 필요한 최소 패키지만 설치
+RUN apk update && apk add --no-cache \
+    bash \
+    curl \
+    net-tools \
+    git \
+    ca-certificates \
+    bash-completion \
+    json-c \
+    libwebsockets
+
+# kubectl 최신 버전 설치
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
+    rm kubectl
+
+# 컴파일된 ttyd 바이너리 복사 (Stage 1에서)
+COPY --from=builder /ttyd/build/ttyd /usr/local/bin/ttyd
+
+# kubectl 자동 완성 및 사용자 설정
+RUN echo "source <(kubectl completion bash)" >> /etc/bash.bashrc && \
+    echo "alias k=kubectl" >> /etc/bash.bashrc && \
+    echo "complete -o default -F __start_kubectl k" >> /etc/bash.bashrc
+
+# 보안을 위한 전용 사용자 생성
+RUN adduser -D user && \
+    mkdir -p /home/user/.kube && \
+    chown -R user:user /home/user
+
+# 사용자 전환
+USER user
+WORKDIR /home/user
+
+# 기본 포트 노출
+EXPOSE 8080
+
+# 기본 실행 명령어
+CMD ["ttyd", "--port", "8080", "--interface", "0.0.0.0", "--writable", "bash"]
