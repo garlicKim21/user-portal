@@ -103,7 +103,7 @@ func main() {
 		api.GET("/login", authHandler.HandleLogin)
 		api.GET("/callback", authHandler.HandleCallback)
 		api.GET("/user", authHandler.HandleGetUser)
-		api.GET("/logout", authHandler.HandleLogout)
+		api.POST("/logout", authHandler.HandleLogout)
 
 		console := api.Group("/console")
 		{

@@ -56,7 +56,7 @@ async function checkUserStatus() {
             const userData = await response.json();
             console.log('사용자 데이터:', userData);
             // 사용자 정보를 어딘가에 저장해두면 좋음
-            window.currentUser = userData; 
+            window.currentUser = userData.data; 
             return true; // 로그인 성공
         }
         return false; // 로그인 실패
@@ -94,13 +94,21 @@ async function logout() {
         });
 
         if (response.ok) {
-            console.log('Successfully logged out from server');
+            const data = await response.json();
+            // 백엔드가 제공한 logout_url이 있으면 해당 주소로 이동
+            if (data.logout_url) {
+                window.location.href = data.logout_url;
+            } else {
+                // Fallback: 기존처럼 루트로 이동
+                window.location.href = '/';
+            }
         } else {
             console.error('Server logout failed');
+            // 실패 시에도 루트로 이동
+            window.location.href = '/';
         }
     } catch (error) {
         console.error('Logout request error:', error);
-    } finally {
         window.location.href = '/';
     }
 }

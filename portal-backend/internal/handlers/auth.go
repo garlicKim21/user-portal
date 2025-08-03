@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -113,9 +115,13 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 		utils.Response.Error(c, models.ErrTokenInvalid.WithDetails("Failed to parse token claims").WithCause(err))
 		return
 	}
+	userID := claims.PreferredUsername
+	if userID == "" {
+		userID = claims.Subject
+	}
 
 	sessionID, err := h.sessionStore.CreateSession(
-		claims.Subject,
+		userID,
 		token.AccessToken,
 		rawIDToken,
 		token.RefreshToken,
@@ -159,16 +165,6 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 	})
 
 	http.SetCookie(c.Writer, cookie)
-
-	// setCookieHeader := c.Writer.Header().Get("Set-Cookie")
-	// logger.DebugWithContext(ctx, "Set-Cookie header value", map[string]any{
-	// 	"set_cookie_header": setCookieHeader,
-	// })
-
-	// logger.DebugWithContext(ctx, "Redirecting to dashboard", map[string]any{
-	// 	"redirect_url": "/dashboard",
-	// 	"status_code":  http.StatusFound,
-	// })
 
 	c.Redirect(http.StatusFound, "/dashboard")
 }
@@ -256,19 +252,47 @@ func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
 
 // HandleLogout 로그아웃 처리
 func (h *AuthHandler) HandleLogout(c *gin.Context) {
-	if sessionID, err := c.Cookie("portal-session"); err == nil {
+	var idTokenHint string
+	sessionID, err := c.Cookie("portal-session")
+	if err == nil {
+		session, sessionErr := h.sessionStore.GetSession(sessionID)
+		if sessionErr == nil {
+			idTokenHint = session.IDToken
+		}
 		h.sessionStore.DeleteSession(sessionID)
 	}
 
-	c.SetCookie(
-		"portal-session",
-		"",
-		-1,
-		"/",
-		"",
-		true,
-		true,
-	)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "portal-session",
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Domain:   "",
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	})
 
-	c.JSON(http.StatusOK, gin.H{"message": "Successfully logged out"})
+	oidcIssuerURL := os.Getenv("OIDC_ISSUER_URL")
+	postLogoutURL := os.Getenv("ALLOWED_ORIGINS")
+
+	logoutURL, err := url.Parse(oidcIssuerURL + "/protocol/openid-connect/logout")
+	if err != nil {
+		utils.Response.InternalError(c, fmt.Errorf("failed to parse logout url: %w", err))
+		return
+	}
+
+	params := url.Values{}
+	params.Add("post_logout_redirect_uri", postLogoutURL)
+
+	if idTokenHint != "" {
+		params.Add("id_token_hint", idTokenHint)
+	}
+
+	logoutURL.RawQuery = params.Encode()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Local session cleared. Redirect to Keycloak for full logout.",
+		"logout_url": logoutURL.String(),
+	})
 }

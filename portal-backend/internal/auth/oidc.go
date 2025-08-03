@@ -91,7 +91,8 @@ func GenerateRandomString(length int) (string, error) {
 
 // TokenClaims 토큰 클레임 구조체
 type TokenClaims struct {
-	Subject string `json:"sub"`
-	Email   string `json:"email"`
-	Name    string `json:"name"`
+	Subject           string `json:"sub"`
+	Email             string `json:"email"`
+	Name              string `json:"name"`
+	PreferredUsername string `json:"preferred_username"`
 }
