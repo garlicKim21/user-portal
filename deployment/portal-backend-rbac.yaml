@@ -1,0 +1,58 @@
+# 포털 백엔드 전용 서비스 계정
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: web-console
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: portal-backend-sa
+  namespace: user-portal
+  labels:
+    app: user-portal-backend
+    component: service-account
+automountServiceAccountToken: true
+---
+# 포털 백엔드가 웹 콘솔 리소스를 관리하기 위한 ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: portal-resource-manager-clusterrole
+  labels:
+    app: user-portal-backend
+    component: rbac
+rules:
+# 웹 콘솔 리소스 관리 권한 (주로 web-console 네임스페이스)
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# 네임스페이스 접근 권한
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list"]
+# 포드 상태 확인 (Deployment 대기용)
+- apiGroups: [""]
+  resources: ["pods/status"]
+  verbs: ["get", "list", "watch"]
+---
+# ClusterRoleBinding - 전용 서비스 계정에 권한 부여
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: portal-resource-manager-clusterrolebinding
+  labels:
+    app: user-portal-backend
+    component: rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: portal-resource-manager-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: portal-backend-sa  # 🎯 전용 서비스 계정 사용
+  namespace: user-portal

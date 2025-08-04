@@ -58,10 +58,8 @@ func (r *ResponseHelper) Error(c *gin.Context, err error) {
 		httpStatus = http.StatusInternalServerError
 	}
 
-	// 요청 ID 생성 (추적용)
 	requestID := uuid.New().String()
 
-	// 에러 응답 구성
 	errorResponse = models.ErrorResponse{
 		Error: models.ErrorInfo{
 			Type:    apiErr.Type,
@@ -74,16 +72,12 @@ func (r *ResponseHelper) Error(c *gin.Context, err error) {
 		RequestID: requestID,
 	}
 
-	// 로깅 (내부 에러의 경우 상세 정보 포함)
+	// 내부 에러의 경우에만 로깅 (중요한 에러만)
 	if apiErr.Type == models.ErrorTypeInternal {
 		r.Logger.Printf("[ERROR] %s - %s | RequestID: %s | Path: %s | Cause: %v",
 			apiErr.Code, apiErr.Message, requestID, c.Request.URL.Path, apiErr.Cause)
-	} else {
-		r.Logger.Printf("[WARN] %s - %s | RequestID: %s | Path: %s",
-			apiErr.Code, apiErr.Message, requestID, c.Request.URL.Path)
 	}
 
-	// 응답 헤더 설정
 	c.Header("X-Request-ID", requestID)
 	c.JSON(httpStatus, errorResponse)
 }

@@ -1,53 +1,195 @@
-# Kubernetes Web Console Portal Backend
+# User Portal Backend
 
 OIDC와 동적 Pod를 이용한 쿠버네티스 웹 콘솔 포털의 백엔드 구현입니다.
 
-## 기능
+## 🎯 주요 기능
 
-- OIDC 기반 사용자 인증 (Keycloak 지원)
-- 동적 웹 콘솔 Pod 생성
-- 쿠버네티스 리소스 관리 (ConfigMap, Pod, Service)
-- RESTful API 제공
+- **OIDC 기반 사용자 인증**: Keycloak을 통한 안전한 사용자 인증
+- **다중 클러스터 지원**: A 클러스터에서 B 클러스터 제어
+- **동적 웹 콘솔 Pod 생성**: 사용자별 격리된 웹 터미널 환경 제공
+- **Secret 기반 보안**: 민감한 정보를 Kubernetes Secret으로 관리
+- **CA 인증서 기반 연결**: 타겟 클러스터와의 보안 연결
+- **RESTful API 제공**: 프론트엔드와의 통신을 위한 API
 
-## 기술 스택
+## 🏗️ 아키텍처
 
-- **언어**: Go 1.21+
+### 패키지 구조
+
+```
+portal-backend/
+├── main.go                    # 애플리케이션 진입점
+├── internal/
+│   ├── config/               # 설정 관리
+│   │   └── config.go         # 환경 변수 로드 및 검증
+│   ├── auth/                 # 인증 관련
+│   │   ├── oidc.go          # OIDC 인증 로직
+│   │   ├── jwt.go           # JWT 토큰 관리
+│   │   ├── session_store.go # 세션 저장소
+│   │   └── groups.go        # 사용자 그룹 관리
+│   ├── kubernetes/           # 쿠버네티스 관련
+│   │   ├── client.go        # 다중 클러스터 클라이언트
+│   │   └── resource.go      # 리소스 생성/관리
+│   ├── handlers/             # API 핸들러
+│   │   ├── auth.go          # 인증 관련 핸들러
+│   │   └── console.go       # 웹 콘솔 관련 핸들러
+│   ├── middleware/           # 미들웨어
+│   │   └── logging.go       # 로깅 미들웨어
+│   ├── models/               # 데이터 모델
+│   │   ├── session.go       # 세션 모델
+│   │   └── error.go         # 에러 모델
+│   ├── logger/               # 로깅
+│   │   └── logger.go        # 구조화된 로깅
+│   └── utils/                # 유틸리티
+│       └── response.go       # HTTP 응답 유틸리티
+├── Dockerfile                # Docker 이미지 빌드
+├── env.example               # 환경 변수 예시
+├── CONFIG.md                 # 설정 가이드
+├── OIDC_SETUP.md            # OIDC 설정 가이드
+└── README.md                # 이 문서
+```
+
+### 데이터 흐름
+
+```
+1. 사용자 로그인 요청
+   ↓
+2. OIDC 인증 (Keycloak)
+   ↓
+3. JWT 토큰 생성 및 세션 저장
+   ↓
+4. 웹 콘솔 요청
+   ↓
+5. Secret에서 클러스터 정보 조회
+   ↓
+6. 타겟 클러스터에 Pod 생성
+   ↓
+7. kubeconfig 생성 (CA 인증서 포함)
+   ↓
+8. 웹 콘솔 URL 반환
+```
+
+## 🛠️ 기술 스택
+
+- **언어**: Go 1.24+
 - **웹 프레임워크**: Gin
 - **인증**: OIDC (coreos/go-oidc)
 - **쿠버네티스**: client-go
+- **보안**: JWT, Kubernetes Secrets
+- **로깅**: 구조화된 로깅 (zap)
 - **컨테이너**: Docker (크로스 플랫폼 빌드)
 
-## API 엔드포인트
+## 📋 API 엔드포인트
 
 ### 인증 관련
 
-- `GET /api/login` - OIDC 인증 시작
-- `GET /api/callback` - OAuth2 콜백 처리
-- `GET /api/user` - 사용자 정보 조회
+| 엔드포인트 | 메서드 | 설명 | 인증 필요 |
+|-----------|--------|------|----------|
+| `/api/login` | GET | OIDC 인증 시작 | ❌ |
+| `/api/callback` | GET | OAuth2 콜백 처리 | ❌ |
+| `/api/user` | GET | 사용자 정보 조회 | ✅ |
+| `/api/logout` | GET | 로그아웃 | ✅ |
 
 ### 웹 콘솔 관련
 
-- `GET /api/launch-console` - 웹 콘솔 Pod 생성 및 실행
+| 엔드포인트 | 메서드 | 설명 | 인증 필요 |
+|-----------|--------|------|----------|
+| `/api/launch-console` | GET | 웹 콘솔 Pod 생성 및 실행 | ✅ |
+| `/api/console-status` | GET | 웹 콘솔 상태 확인 | ✅ |
 
-## 환경 변수
+### 헬스체크
 
-다음 환경 변수들을 설정해야 합니다:
+| 엔드포인트 | 메서드 | 설명 |
+|-----------|--------|------|
+| `/health` | GET | 애플리케이션 상태 확인 |
+
+## ⚙️ 환경 변수
+
+### 필수 환경 변수
 
 ```bash
 # OIDC 설정
-OIDC_CLIENT_ID=your-client-id
-OIDC_CLIENT_SECRET=your-client-secret
-OIDC_ISSUER_URL=https://keycloak.example.com/auth/realms/your-realm
-OIDC_REDIRECT_URL=http://localhost:8080/api/callback
+OIDC_CLIENT_ID=portal-app                    # OIDC 클라이언트 ID
+OIDC_CLIENT_SECRET=your-client-secret        # OIDC 클라이언트 시크릿
+OIDC_ISSUER_URL=https://your-keycloak-url/realms/basphere  # OIDC 발급자 URL
+OIDC_REDIRECT_URL=https://your-keycloak-url/api/callback     # OIDC 리다이렉트 URL
+
+# JWT 설정
+JWT_SECRET_KEY=your-super-secure-jwt-secret  # JWT 서명 키 (최소 32자)
 
 # 서버 설정
-PORT=8080
-
-# 쿠버네티스 설정 (개발 환경용)
-KUBECONFIG=~/.kube/config
+PORT=8080                                    # 서버 포트
+GIN_MODE=release                            # Gin 모드
+ALLOWED_ORIGINS=https://portal.basphere.dev # CORS 허용 오리진
 ```
 
-## 개발 환경 설정
+### 선택적 환경 변수
+
+```bash
+# 로깅 설정
+LOG_LEVEL=INFO                              # 로그 레벨 (DEBUG/INFO/WARN/ERROR/FATAL)
+
+# 웹 콘솔 설정
+CONSOLE_NAMESPACE=web-console              # 웹 콘솔 네임스페이스
+CONSOLE_IMAGE=projectgreenist/web-terminal:0.2.3  # 웹 콘솔 이미지
+CONSOLE_CONTAINER_PORT=8080                # 컨테이너 포트
+CONSOLE_SERVICE_PORT=80                    # 서비스 포트
+CONSOLE_TTL_SECONDS=3600                   # TTL (초)
+WEB_CONSOLE_BASE_URL=https://console.basphere.dev  # 웹 콘솔 베이스 URL
+
+# 개발 환경용
+KUBECONFIG=~/.kube/config                  # Kubeconfig 파일 경로 (개발 환경에서만 사용)
+```
+
+### Secret에서 관리되는 환경 변수
+
+```bash
+# 타겟 클러스터 설정 (Secret에서 관리)
+TARGET_CLUSTER_SERVER=https://<your-target-cluster>:6443  # 타겟 클러스터 서버
+TARGET_CLUSTER_CA_CERT_DATA=LS0tLS1CRUdJTi...      # CA 인증서 (base64 인코딩)
+
+# kubectl OIDC 설정 (Secret에서 관리)
+KUBECTL_OIDC_CLIENT_ID=kubernetes                  # kubectl OIDC 클라이언트 ID
+KUBECTL_OIDC_CLIENT_SECRET=your-kubectl-secret     # kubectl OIDC 클라이언트 시크릿
+```
+
+## 🔐 보안 아키텍처
+
+### Secret 기반 설정 관리
+
+민감한 정보는 Kubernetes Secret으로 관리됩니다:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-portal-secrets
+  namespace: user-portal
+type: Opaque
+data:
+  jwt-secret-key: <base64-encoded-jwt-secret>
+  oidc-client-secret: <base64-encoded-oidc-secret>
+  kubectl-oidc-client-secret: <base64-encoded-kubectl-secret>
+  target-cluster-server: <base64-encoded-cluster-url>
+  target-cluster-ca-cert-data: <base64-encoded-ca-cert>
+```
+
+### CA 인증서 처리
+
+타겟 클러스터의 CA 인증서를 base64로 인코딩하여 Secret에 저장:
+
+```bash
+# CA 인증서를 base64로 인코딩
+cat /path/to/ca.crt | base64 -w 0
+```
+
+### 다중 클러스터 보안
+
+- **A 클러스터**: 포털 애플리케이션 실행
+- **B 클러스터**: 웹 콘솔 Pod 생성
+- **CA 인증서**: B 클러스터와의 보안 연결
+- **RBAC**: 사용자별 권한 제한
+
+## 🚀 개발 환경 설정
 
 ### 1. 의존성 설치
 
@@ -65,10 +207,27 @@ cp env.example .env
 ### 3. 애플리케이션 실행
 
 ```bash
+# 개발 모드
 go run main.go
+
+# 프로덕션 모드
+GIN_MODE=release go run main.go
 ```
 
-## Docker 빌드
+### 4. 테스트 실행
+
+```bash
+# 전체 테스트
+go test ./...
+
+# 특정 패키지 테스트
+go test ./internal/auth/...
+
+# 커버리지 포함 테스트
+go test -cover ./...
+```
+
+## 🐳 Docker 빌드
 
 ### 크로스 플랫폼 빌드 (AMD64)
 
@@ -82,7 +241,27 @@ docker buildx build --platform linux/amd64 -t portal-backend:latest .
 docker build -t portal-backend:latest .
 ```
 
-## 배포
+### 멀티 스테이지 빌드
+
+```dockerfile
+# 빌드 스테이지
+FROM golang:1.21-alpine AS builder
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o portal-backend .
+
+# 실행 스테이지
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/portal-backend .
+EXPOSE 8080
+CMD ["./portal-backend"]
+```
+
+## 📦 배포
 
 ### 쿠버네티스 배포
 
@@ -90,58 +269,181 @@ docker build -t portal-backend:latest .
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: portal-backend
+  name: user-portal-backend
+  namespace: user-portal
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: portal-backend
+      app: user-portal-backend
   template:
     metadata:
       labels:
-        app: portal-backend
+        app: user-portal-backend
     spec:
+      serviceAccountName: portal-backend-sa
       containers:
-      - name: portal-backend
-        image: portal-backend:latest
+      - name: user-portal-backend
+        image: projectgreenist/user-portal-backend:0.3.19
+        imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:
+        - name: OIDC_ISSUER_URL
+          value: "https://keycloak.basphere.dev/realms/basphere"
         - name: OIDC_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: oidc-secret
-              key: client-id
+          value: "portal-app"
         - name: OIDC_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
-              name: oidc-secret
-              key: client-secret
-        - name: OIDC_ISSUER_URL
-          value: "https://keycloak.example.com/auth/realms/your-realm"
-        - name: OIDC_REDIRECT_URL
-          value: "https://portal.example.com/api/callback"
+              name: user-portal-secrets
+              key: oidc-client-secret
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: user-portal-secrets
+              key: jwt-secret-key
+        - name: TARGET_CLUSTER_SERVER
+          valueFrom:
+            secretKeyRef:
+              name: user-portal-secrets
+              key: target-cluster-server
+        - name: TARGET_CLUSTER_CA_CERT_DATA
+          valueFrom:
+            secretKeyRef:
+              name: user-portal-secrets
+              key: target-cluster-ca-cert-data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
 ```
 
-## 보안 고려사항
+## 🔧 설정 가이드
 
-1. **세션 관리**: 현재는 메모리 기반 세션을 사용하지만, 프로덕션에서는 Redis나 데이터베이스를 사용해야 합니다.
-2. **토큰 보안**: ID 토큰은 안전하게 저장하고 전송해야 합니다.
-3. **RBAC**: 쿠버네티스 클러스터에서 적절한 RBAC 설정이 필요합니다.
-4. **네트워크 정책**: Pod 간 통신을 제한하는 네트워크 정책을 설정해야 합니다.
+### OIDC 설정
 
-## 아키텍처
+Keycloak을 사용한 OIDC 설정은 [OIDC_SETUP.md](OIDC_SETUP.md)를 참조하세요.
 
+### 환경 변수 설정
+
+상세한 환경 변수 설정은 [CONFIG.md](CONFIG.md)를 참조하세요.
+
+## 🧪 테스트
+
+### 단위 테스트
+
+```bash
+# 특정 함수 테스트
+go test -v -run TestFunctionName
+
+# 패키지별 테스트
+go test ./internal/auth/...
+go test ./internal/kubernetes/...
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web Browser  │    │  Portal Backend │    │  Kubernetes    │
-│                 │    │                 │    │   Cluster      │
-│ 1. Login       │───▶│ 2. OIDC Auth   │───▶│ 3. Create Pod  │
-│ 4. Launch      │    │ 5. Session Mgmt │    │ 4. ConfigMap   │
-│ 6. Web Console │◀───│ 6. Return URL  │◀───│ 5. Service     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+
+### 통합 테스트
+
+```bash
+# 전체 통합 테스트
+go test -tags=integration ./...
+
+# 특정 통합 테스트
+go test -tags=integration -run TestIntegration ./...
 ```
 
-## 라이선스
+### 성능 테스트
+
+```bash
+# 벤치마크 테스트
+go test -bench=. ./...
+
+# 프로파일링
+go test -cpuprofile=cpu.prof -bench=. ./...
+```
+
+## 🔍 모니터링
+
+### 로그 레벨
+
+```bash
+# 개발 환경
+LOG_LEVEL=DEBUG
+
+# 프로덕션 환경
+LOG_LEVEL=INFO
+```
+
+### 헬스체크
+
+```bash
+# 애플리케이션 상태 확인
+curl http://localhost:8080/health
+```
+
+### 메트릭
+
+```bash
+# 메모리 사용량
+curl http://localhost:8080/debug/pprof/heap
+
+# 고루틴 상태
+curl http://localhost:8080/debug/pprof/goroutine
+```
+
+## 🚨 문제 해결
+
+### 일반적인 문제
+
+1. **OIDC 연결 실패**
+   - `OIDC_ISSUER_URL` 확인
+   - 클라이언트 ID/시크릿 확인
+   - 네트워크 연결 확인
+
+2. **쿠버네티스 연결 실패**
+   - `KUBECONFIG` 파일 확인
+   - 클러스터 접근 권한 확인
+   - Secret 설정 확인
+
+3. **웹 콘솔 생성 실패**
+   - 타겟 클러스터 연결 확인
+   - CA 인증서 설정 확인
+   - RBAC 권한 확인
+
+### 로그 분석
+
+```bash
+# 애플리케이션 로그 확인
+kubectl logs -f deployment/user-portal-backend
+
+# 특정 시간대 로그
+kubectl logs --since=1h deployment/user-portal-backend
+
+# 에러 로그만 확인
+kubectl logs deployment/user-portal-backend | grep ERROR
+```
+
+## 📚 추가 문서
+
+- **[Configuration Guide](CONFIG.md)** - 상세 설정 가이드
+- **[OIDC Setup](OIDC_SETUP.md)** - OIDC 설정 가이드
+- **[Deployment Guide](../deployment/README.md)** - 배포 가이드
+
+## 📄 라이선스
 
 MIT License 

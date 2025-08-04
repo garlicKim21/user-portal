@@ -9,11 +9,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
+
+	"portal-backend/internal/config"
 )
 
 // OIDCConfig OIDC 설정
@@ -34,36 +35,32 @@ type OIDCProvider struct {
 
 // NewOIDCProvider 새로운 OIDC 제공자 생성
 func NewOIDCProvider() (*OIDCProvider, error) {
-	config := &OIDCConfig{
-		ClientID:     os.Getenv("OIDC_CLIENT_ID"),
-		ClientSecret: os.Getenv("OIDC_CLIENT_SECRET"),
-		IssuerURL:    os.Getenv("OIDC_ISSUER_URL"),
-		RedirectURL:  os.Getenv("OIDC_REDIRECT_URL"),
-	}
-
-	// 필수 환경 변수 검증
-	if config.ClientID == "" || config.ClientSecret == "" || config.IssuerURL == "" || config.RedirectURL == "" {
-		return nil, fmt.Errorf("OIDC 환경 변수가 설정되지 않았습니다")
+	cfg := config.Get()
+	oidcConfig := &OIDCConfig{
+		ClientID:     cfg.OIDC.ClientID,
+		ClientSecret: cfg.OIDC.ClientSecret,
+		IssuerURL:    cfg.OIDC.IssuerURL,
+		RedirectURL:  cfg.OIDC.RedirectURL,
 	}
 
 	ctx := context.Background()
-	provider, err := oidc.NewProvider(ctx, config.IssuerURL)
+	provider, err := oidc.NewProvider(ctx, oidcConfig.IssuerURL)
 	if err != nil {
 		return nil, fmt.Errorf("OIDC provider 생성 실패: %v", err)
 	}
 
 	oauth2Config := &oauth2.Config{
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
-		RedirectURL:  config.RedirectURL,
+		ClientID:     oidcConfig.ClientID,
+		ClientSecret: oidcConfig.ClientSecret,
+		RedirectURL:  oidcConfig.RedirectURL,
 		Endpoint:     provider.Endpoint(),
 		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "offline_access"},
 	}
 
-	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientID})
+	verifier := provider.Verifier(&oidc.Config{ClientID: oidcConfig.ClientID})
 
 	return &OIDCProvider{
-		config:       config,
+		config:       oidcConfig,
 		oauth2Config: oauth2Config,
 		provider:     provider,
 		verifier:     verifier,
@@ -115,13 +112,14 @@ type TokenExchangeResponse struct {
 
 // ExchangeTokenForKubernetes portal-app 토큰을 kubernetes 클라이언트용 토큰으로 교환
 func ExchangeTokenForKubernetes(subjectToken string) (*TokenExchangeResponse, error) {
-	clientID := os.Getenv("OIDC_CLIENT_ID")
-	clientSecret := os.Getenv("OIDC_CLIENT_SECRET")
-	targetAudience := os.Getenv("KUBERNETES_CLIENT_ID")
-	tokenEndpoint := os.Getenv("OIDC_ISSUER_URL") + "/protocol/openid-connect/token"
+	cfg := config.Get()
+	clientID := cfg.OIDC.ClientID
+	clientSecret := cfg.OIDC.ClientSecret
+	targetAudience := cfg.OIDC.KubernetesClientID
+	tokenEndpoint := cfg.OIDC.IssuerURL + "/protocol/openid-connect/token"
 
-	if clientID == "" || clientSecret == "" || targetAudience == "" {
-		return nil, fmt.Errorf("token exchange configuration is incomplete")
+	if targetAudience == "" {
+		return nil, fmt.Errorf("KUBERNETES_CLIENT_ID environment variable is required for token exchange")
 	}
 
 	data := url.Values{}

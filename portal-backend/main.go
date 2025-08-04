@@ -3,13 +3,12 @@ package main
 import (
 	"context"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 
 	"portal-backend/internal/auth"
+	"portal-backend/internal/config"
 	"portal-backend/internal/handlers"
 	"portal-backend/internal/kubernetes"
 	"portal-backend/internal/logger"
@@ -17,42 +16,32 @@ import (
 )
 
 func main() {
+	// 설정 로드
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Fatal("Failed to load configuration", err)
+	}
+
 	logger.Init()
 	logger.Info("Starting Portal Backend application")
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-	logger.InfoWithContext(context.TODO(), "Server configuration loaded", map[string]any{
-		"port": port,
-	})
-
-	logger.Info("Initializing OIDC provider")
 	oidcProvider, err := auth.NewOIDCProvider()
 	if err != nil {
 		logger.Fatal("Failed to create OIDC provider", err)
 	}
-	logger.Info("OIDC provider initialized successfully")
 
-	logger.Info("Initializing Kubernetes client")
 	k8sClient, err := kubernetes.NewClient()
 	if err != nil {
 		logger.Fatal("Failed to create Kubernetes client", err)
 	}
-	logger.Info("Kubernetes client initialized successfully")
 
-	logger.Info("Initializing handlers")
 	authHandler, err := handlers.NewAuthHandler(oidcProvider, k8sClient)
 	if err != nil {
 		logger.Fatal("Failed to create auth handler", err)
 	}
 	consoleHandler := handlers.NewConsoleHandler(k8sClient, authHandler)
-	logger.Info("Handlers initialized successfully")
 
-	if os.Getenv("GIN_MODE") == "" {
-		gin.SetMode(gin.ReleaseMode)
-	}
+	gin.SetMode(cfg.Server.GinMode)
 
 	r := gin.New()
 
@@ -68,15 +57,10 @@ func main() {
 
 	// CORS 설정
 	r.Use(func(c *gin.Context) {
-		allowedOrigins := os.Getenv("ALLOWED_ORIGINS")
-		if allowedOrigins == "" {
-			allowedOrigins = "http://localhost:5173,http://localhost:3000,http://localhost:8080"
-		}
-
 		origin := c.Request.Header.Get("Origin")
 		allowed := false
-		for _, allowedOrigin := range strings.Split(allowedOrigins, ",") {
-			if strings.TrimSpace(allowedOrigin) == origin {
+		for _, allowedOrigin := range cfg.Server.AllowedOrigins {
+			if allowedOrigin == origin {
 				allowed = true
 				break
 			}
@@ -124,11 +108,10 @@ func main() {
 	})
 
 	logger.InfoWithContext(context.TODO(), "Starting HTTP server", map[string]any{
-		"port":    port,
-		"version": "1.0.0",
+		"port": cfg.Server.Port,
 	})
 
-	if err := r.Run(":" + port); err != nil {
+	if err := r.Run(":" + cfg.Server.Port); err != nil {
 		logger.Fatal("Failed to start HTTP server", err)
 	}
 }

@@ -1,5 +1,6 @@
 # B 클러스터 RBAC 설정
 # Keycloak 그룹과 쿠버네티스 ClusterRole 연동
+# 사용자 그룹 기반 권한 제어
 
 ---
 # Viewer Role - 읽기 전용 권한

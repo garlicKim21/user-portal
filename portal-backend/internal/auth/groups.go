@@ -18,7 +18,6 @@ type UserGroups struct {
 
 // ExtractUserGroups ID 토큰에서 사용자 그룹 정보 추출
 func ExtractUserGroups(idToken string) (*UserGroups, error) {
-	// JWT 토큰 파싱 (검증 없이 클레임만 추출)
 	token, _, err := new(jwt.Parser).ParseUnverified(idToken, jwt.MapClaims{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse token: %v", err)
@@ -77,8 +76,8 @@ func ExtractUserGroups(idToken string) (*UserGroups, error) {
 }
 
 // GetUserRole 사용자의 최고 권한 역할 반환
+// 우선순위: admin > developer > viewer > user
 func (ug *UserGroups) GetUserRole() string {
-	// 우선순위: admin > developer > viewer > user
 	for _, group := range ug.Groups {
 		switch strings.ToLower(group) {
 		case "admins", "admin":

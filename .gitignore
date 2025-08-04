@@ -17,6 +17,9 @@ portal-backend.exe
 coverage.out
 coverage.html
 
+# Node.js 커버리지 디렉토리
+coverage/
+
 # Go 벤치마크 파일
 *.bench
 
@@ -24,8 +27,23 @@ coverage.html
 *.prof
 *.pprof
 
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
 # Go 모듈 캐시
 go.sum
+
+# Go 워크스페이스 파일
+go.work
+
+# Node.js 관련 추가 파일
+.npm
+.node_repl_history
+*.tgz
+.yarn-integrity
 
 # ===== Node.js 관련 파일 =====
 # 의존성
@@ -48,6 +66,10 @@ build/
 .env.development.local
 .env.test.local
 .env.production.local
+test.env
+
+# 예시 파일은 포함 (개발자 참고용)
+# env.example
 
 # ===== 로그 파일 =====
 *.log
@@ -77,10 +99,27 @@ Thumbs.db
 *.swo
 *~
 
+# Visual Studio 관련 파일
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
 # ===== 쿠버네티스 관련 =====
 # kubeconfig 파일 (개인 설정)
 kubeconfig
 *.kubeconfig
+# 실제 환경의 Secret 파일 (예시 파일은 포함)
+deployment/user-portal-secrets.yaml
+
+# 환경별 설정 파일
+deployment/*-prod.yaml
+deployment/*-staging.yaml
+deployment/*-dev.yaml
+
+# 개인 설정 파일
+deployment/personal-*.yaml
+deployment/local-*.yaml
 
 # ===== 인증서 및 키 파일 =====
 *.key
@@ -124,5 +163,6 @@ portal-backend/portal-backend.exe
 portal-frontend/dist/
 portal-frontend/build/
 
-# ===== 배포 파일 (민감한 정보 포함) =====
-deployment/ 
+# ===== 배포 파일 =====
+# deployment/ 디렉토리는 Secret으로 민감 정보를 관리하므로 포함
+# deployment/user-portal-secrets.yaml은 실제 환경에서만 생성 

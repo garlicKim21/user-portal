@@ -30,7 +30,7 @@ type AuthHandler struct {
 func NewAuthHandler(oidcProvider *auth.OIDCProvider, k8sClient *kubernetes.Client) (*AuthHandler, error) {
 	return &AuthHandler{
 		oidcProvider: oidcProvider,
-		sessionStore: auth.NewSessionStore(), // 세션 저장소 초기화
+		sessionStore: auth.NewSessionStore(),
 		tempSessions: make(map[string]*models.Session),
 		k8sClient:    k8sClient,
 	}, nil
@@ -50,13 +50,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 
-	// OAuth2 인증 URL 생성
 	authURL := h.oidcProvider.GetAuthURL(state)
-
-	logger.InfoWithContext(c.Request.Context(), "Redirecting to OAuth2 provider", map[string]any{
-		"auth_url": authURL,
-		"state":    state,
-	})
 	c.Redirect(http.StatusTemporaryRedirect, authURL)
 }
 
@@ -160,53 +154,18 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 		SameSite: http.SameSiteNoneMode,
 	}
 
-	logger.DebugWithContext(ctx, "Setting session cookie", map[string]any{
-		"session_id":    sessionID,
-		"cookie_size":   len(sessionID),
-		"cookie_name":   cookie.Name,
-		"cookie_secure": cookie.Secure,
-		"samesite":      "None",
-	})
-
 	http.SetCookie(c.Writer, cookie)
-
 	c.Redirect(http.StatusFound, "/dashboard")
 }
 
 // HandleGetUser 사용자 정보 조회
 func (h *AuthHandler) HandleGetUser(c *gin.Context) {
-	logger.DebugWithContext(c.Request.Context(), "Request headers", map[string]any{
-		"user_agent": c.Request.UserAgent(),
-		"referer":    c.Request.Referer(),
-		"origin":     c.Request.Header.Get("Origin"),
-		"host":       c.Request.Host,
-	})
-
-	cookies := make(map[string]string)
-	for _, cookie := range c.Request.Cookies() {
-		value := cookie.Value
-		if len(value) > 20 {
-			value = value[:20] + "..."
-		}
-		cookies[cookie.Name] = value
-	}
-
-	logger.DebugWithContext(c.Request.Context(), "All cookies received", map[string]any{
-		"cookies_count": len(c.Request.Cookies()),
-		"cookies":       cookies,
-	})
-
-	// 새로운 쿠키명으로 JWT 토큰 가져오기
 	tokenString, err := c.Cookie("portal-session")
 	if err != nil {
-		logger.DebugWithContext(c.Request.Context(), "Session token cookie not found", map[string]any{
-			"error": err.Error(),
-		})
 		utils.Response.Error(c, models.ErrSessionNotFound.WithDetails("Session token cookie not found"))
 		return
 	}
 
-	// JWT 토큰 검증
 	claims, err := h.sessionStore.GetSession(tokenString)
 	if err != nil {
 		logger.WarnWithContext(c.Request.Context(), "Invalid JWT token received", map[string]any{
@@ -216,7 +175,6 @@ func (h *AuthHandler) HandleGetUser(c *gin.Context) {
 		return
 	}
 
-	// 사용자 ID를 컨텍스트에 설정
 	c.Set("user_id", claims.UserID)
 	ctx := context.WithValue(c.Request.Context(), logger.UserIDKey, claims.UserID)
 	c.Request = c.Request.WithContext(ctx)
@@ -229,19 +187,16 @@ func (h *AuthHandler) HandleGetUser(c *gin.Context) {
 
 // GetSession JWT에서 세션 정보 조회
 func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
-	// 쿠키에서 JWT 토큰 가져오기
 	tokenString, err := c.Cookie("portal-session")
 	if err != nil {
 		return nil, models.ErrSessionNotFound.WithDetails("Session token cookie not found")
 	}
 
-	// JWT 토큰 검증
 	claims, err := h.sessionStore.GetSession(tokenString)
 	if err != nil {
 		return nil, models.ErrTokenInvalid.WithDetails("Session token validation failed").WithCause(err)
 	}
 
-	// JWT 클레임에서 세션 정보 생성
 	session := &models.Session{
 		AccessToken:  claims.AccessToken,
 		IDToken:      claims.IDToken,
@@ -276,10 +231,6 @@ func (h *AuthHandler) HandleLogout(c *gin.Context) {
 		err := h.cleanupUserResources(userID)
 		if err != nil {
 			logger.ErrorWithContext(c.Request.Context(), "Failed to cleanup user resources", err, map[string]any{
-				"user_id": userID,
-			})
-		} else {
-			logger.InfoWithContext(c.Request.Context(), "Successfully cleaned up user resources", map[string]any{
 				"user_id": userID,
 			})
 		}
@@ -336,7 +287,7 @@ func (h *AuthHandler) cleanupUserResources(userID string) error {
 		"label_selector": labelSelector,
 	})
 
-	// 1. Deployment 삭제
+	// Deployment 삭제
 	deployments, err := h.k8sClient.Clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
@@ -361,7 +312,7 @@ func (h *AuthHandler) cleanupUserResources(userID string) error {
 		}
 	}
 
-	// 2. Service 삭제
+	// Service 삭제
 	services, err := h.k8sClient.Clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
@@ -386,7 +337,7 @@ func (h *AuthHandler) cleanupUserResources(userID string) error {
 		}
 	}
 
-	// 3. Secret 삭제
+	// Secret 삭제
 	secrets, err := h.k8sClient.Clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: labelSelector,
 	})
@@ -410,8 +361,6 @@ func (h *AuthHandler) cleanupUserResources(userID string) error {
 			}
 		}
 	}
-
-	// 참고: PVC는 히스토리 보존을 위해 삭제하지 않음
 
 	return nil
 }

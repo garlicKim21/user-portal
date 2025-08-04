@@ -191,6 +191,10 @@ func (l *Logger) Error(message string, err error) {
 
 // ErrorWithContext 컨텍스트가 포함된 에러 로그
 func (l *Logger) ErrorWithContext(ctx context.Context, message string, err error, extra map[string]any) {
+	if !l.shouldLog(ERROR) {
+		return
+	}
+
 	if extra == nil {
 		extra = make(map[string]any)
 	}
@@ -209,12 +213,10 @@ func (l *Logger) ErrorWithContext(ctx context.Context, message string, err error
 		entry.Error = err.Error()
 	}
 
-	// 호출자 정보 추가
 	file, line := getCallerInfo(1)
 	entry.File = file
 	entry.Line = line
 
-	// 컨텍스트에서 정보 추출
 	if ctx != nil {
 		if requestID, ok := ctx.Value("request_id").(string); ok {
 			entry.RequestID = requestID
@@ -224,14 +226,12 @@ func (l *Logger) ErrorWithContext(ctx context.Context, message string, err error
 		}
 	}
 
-	if l.shouldLog(ERROR) {
-		jsonData, jsonErr := json.Marshal(entry)
-		if jsonErr != nil {
-			l.output.Printf("[ERROR] %s - JSON Marshal Error: %v", message, jsonErr)
-			return
-		}
-		l.output.Println(string(jsonData))
+	jsonData, jsonErr := json.Marshal(entry)
+	if jsonErr != nil {
+		l.output.Printf("[ERROR] %s - JSON Marshal Error: %v", message, jsonErr)
+		return
 	}
+	l.output.Println(string(jsonData))
 }
 
 // Fatal 치명적 에러 로그 (프로그램 종료)
@@ -304,9 +304,6 @@ func LogHTTPRequest(ctx context.Context, method, path string, statusCode int, du
 		},
 	}
 
-	// 호출자 정보는 HTTP 로그에서는 제외 (의미 없음)
-
-	// 컨텍스트에서 정보 추출
 	if ctx != nil {
 		if requestID, ok := ctx.Value("request_id").(string); ok {
 			entry.RequestID = requestID
@@ -316,7 +313,6 @@ func LogHTTPRequest(ctx context.Context, method, path string, statusCode int, du
 		}
 	}
 
-	// Gin 컨텍스트에서 추가 정보 추출
 	if c != nil {
 		entry.RemoteAddr = c.ClientIP()
 		entry.UserAgent = c.GetHeader("User-Agent")

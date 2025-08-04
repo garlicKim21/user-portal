@@ -52,10 +52,6 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 		return
 	}
 
-	logger.InfoWithContext(c.Request.Context(), "Performing token exchange for kubernetes access", map[string]any{
-		"user_id": session.UserID,
-	})
-
 	// Access Token을 사용하여 Kubernetes 전용 토큰으로 교환합니다.
 	exchangeResp, err := auth.ExchangeTokenForKubernetes(session.AccessToken)
 	if err != nil {
@@ -68,55 +64,16 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 
 	newK8sAccessToken := exchangeResp.AccessToken
 
-	// 사용자 그룹 정보 확인 및 로깅
-	userGroups, err := auth.ExtractUserGroups(session.IDToken)
+	// 사용자 그룹 정보 확인 (필요시 사용)
+	_, err = auth.ExtractUserGroups(session.IDToken)
 	if err != nil {
 		logger.WarnWithContext(c.Request.Context(), "Failed to extract user groups", map[string]any{
 			"user_id": session.UserID,
 			"error":   err.Error(),
 		})
-	} else {
-		logger.InfoWithContext(c.Request.Context(), "User groups extracted", map[string]any{
-			"user_id":  session.UserID,
-			"username": userGroups.Username,
-			"groups":   userGroups.Groups,
-			"role":     userGroups.GetUserRole(),
-		})
 	}
 
-	// Token Exchange 수행: portal-app 토큰을 kubernetes 클라이언트용 토큰으로 교환
-	logger.InfoWithContext(c.Request.Context(), "Performing token exchange for kubernetes access", map[string]any{
-		"user_id": session.UserID,
-	})
-
-	tokenResponse, err := auth.ExchangeTokenForKubernetes(session.AccessToken)
-	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Failed to exchange token for kubernetes access", err, map[string]any{
-			"user_id": session.UserID,
-		})
-		utils.Response.Error(c, models.ErrTokenExchangeFailed.WithDetails("User: "+session.UserID).WithCause(err))
-		return
-	}
-
-	logger.InfoWithContext(c.Request.Context(), "Token exchange successful", map[string]any{
-		"user_id":    session.UserID,
-		"token_type": tokenResponse.TokenType,
-		"expires_in": tokenResponse.ExpiresIn,
-	})
-
-	// 웹 콘솔 리소스 생성 (UUID 기반 이름으로 충돌 방지)
-	logger.InfoWithContext(c.Request.Context(), "Creating console resources", map[string]any{
-		"user_id": session.UserID,
-		"role": func() string {
-			if userGroups != nil {
-				return userGroups.GetUserRole()
-			} else {
-				return "unknown"
-			}
-		}(),
-	})
-
-	// 교환된 토큰을 전달. Refresh Token은 기존 세션의 것을 사용
+	// 웹 콘솔 리소스 생성
 	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, newK8sAccessToken, session.RefreshToken)
 	if err != nil {
 		logger.ErrorWithContext(c.Request.Context(), "Failed to create console resources", err, map[string]any{
@@ -130,11 +87,9 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 	h.resources[resource.ID] = resource
 
 	logger.InfoWithContext(c.Request.Context(), "Web console created successfully", map[string]any{
-		"user_id":         session.UserID,
-		"resource_id":     resource.ID,
-		"console_url":     resource.ConsoleURL,
-		"deployment_name": resource.DeploymentName,
-		"service_name":    resource.ServiceName,
+		"user_id":     session.UserID,
+		"resource_id": resource.ID,
+		"console_url": resource.ConsoleURL,
 	})
 
 	utils.Response.SuccessWithMessage(c, "Web console created successfully", models.LaunchConsoleResponse{
@@ -182,6 +137,8 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	logger.InfoWithContext(c.Request.Context(), "Deleting console resources", map[string]any{
 		"user_id":     session.UserID,
 		"resource_id": resourceID,
+		"deployment":  resource.DeploymentName,
+		"service":     resource.ServiceName,
 	})
 
 	err = h.k8sClient.DeleteConsoleResources(resource)
@@ -200,6 +157,8 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	logger.InfoWithContext(c.Request.Context(), "Web console deleted successfully", map[string]any{
 		"user_id":     session.UserID,
 		"resource_id": resourceID,
+		"deployment":  resource.DeploymentName,
+		"service":     resource.ServiceName,
 	})
 	utils.Response.SuccessWithMessage(c, "Console deleted successfully", gin.H{
 		"resource_id": resourceID,
@@ -256,8 +215,6 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 	err := h.k8sClient.CleanupExpiredResources(config.Namespace)
 	if err != nil {
 		logger.Error("Failed to cleanup expired resources", err)
-	} else {
-		logger.Debug("Expired resources cleanup completed")
 	}
 
 	// 메모리에서 오래된 리소스 정리 (1시간 이상)
@@ -265,13 +222,15 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 	cleanedCount := 0
 	for id, resource := range h.resources {
 		if resource.CreatedAt.Before(cutoff) {
-			delete(h.resources, id)
-			cleanedCount++
-			logger.DebugWithContext(context.TODO(), "Removed expired resource from memory", map[string]any{
+			logger.InfoWithContext(context.TODO(), "Removing expired resource from memory", map[string]any{
 				"resource_id": id,
 				"user_id":     resource.UserID,
 				"created_at":  resource.CreatedAt,
+				"deployment":  resource.DeploymentName,
+				"service":     resource.ServiceName,
 			})
+			delete(h.resources, id)
+			cleanedCount++
 		}
 	}
 
