@@ -170,6 +170,14 @@ var (
 		Message:    "Service temporarily unavailable",
 		HTTPStatus: http.StatusServiceUnavailable,
 	}
+
+	// Token Exchange 관련 에러
+	ErrTokenExchangeFailed = &APIError{
+		Type:       ErrorTypeAuthentication,
+		Code:       "AUTH005",
+		Message:    "Failed to exchange token for kubernetes access",
+		HTTPStatus: http.StatusUnauthorized,
+	}
 )
 
 // NewAPIError 새로운 API 에러 생성

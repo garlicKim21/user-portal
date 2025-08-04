@@ -56,8 +56,8 @@ func NewClient() (*Client, error) {
 	}, nil
 }
 
-// GenerateKubeconfig B 클러스터 접근을 위한 OIDC 설정이 포함된 kubeconfig 생성
-func GenerateKubeconfig(idToken string) string {
+// GenerateKubeconfig B 클러스터 접근을 위한 Bearer Token 설정이 포함된 kubeconfig 생성
+func GenerateKubeconfig(accessToken string) string {
 	// B 클러스터 정보 가져오기 (웹 터미널에서 제어할 타겟 클러스터)
 	clusterServer := os.Getenv("TARGET_CLUSTER_SERVER")
 	if clusterServer == "" {
@@ -77,51 +77,7 @@ func GenerateKubeconfig(idToken string) string {
 		}
 	}
 
-	oidcIssuerURL := os.Getenv("OIDC_ISSUER_URL")
-	// kubectl 전용 클라이언트 ID 사용 (B 클러스터 접근용)
-	oidcClientID := os.Getenv("KUBECTL_OIDC_CLIENT_ID")
-	if oidcClientID == "" {
-		// Fallback to default kubernetes client
-		oidcClientID = "kubernetes"
-	}
-
-	// OIDC 설정이 있는 경우 OIDC 기반 kubeconfig 생성
-	if oidcIssuerURL != "" && oidcClientID != "" {
-		var clusterConfig string
-		if clusterCA != "" {
-			clusterConfig = fmt.Sprintf(`    server: %s
-    certificate-authority-data: %s`, clusterServer, clusterCA)
-		} else {
-			clusterConfig = fmt.Sprintf(`    server: %s
-    insecure-skip-tls-verify: true`, clusterServer)
-		}
-
-		return fmt.Sprintf(`apiVersion: v1
-kind: Config
-clusters:
-- name: kubernetes
-  cluster:
-%s
-contexts:
-- name: oidc-context
-  context:
-    cluster: kubernetes
-    user: oidc-user
-current-context: oidc-context
-users:
-- name: oidc-user
-  user:
-    exec:
-      apiVersion: client.authentication.k8s.io/v1
-      command: sh
-      args:
-      - "-c"
-      - "echo '{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"kind\":\"ExecCredential\",\"status\":{\"token\":\"'$ID_TOKEN'\"}}'"
-      interactiveMode: IfAvailable
-`, clusterConfig)
-	}
-
-	// OIDC 설정이 없는 경우 토큰 기반 kubeconfig 생성 (Fallback)
+	// Bearer Token 기반 kubeconfig 생성
 	var clusterConfig string
 	if clusterCA != "" {
 		clusterConfig = fmt.Sprintf(`    server: %s
@@ -147,5 +103,5 @@ users:
 - name: token-user
   user:
     token: %s
-`, clusterConfig, idToken)
+`, clusterConfig, accessToken)
 }

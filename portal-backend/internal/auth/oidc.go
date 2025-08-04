@@ -4,8 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -52,7 +57,7 @@ func NewOIDCProvider() (*OIDCProvider, error) {
 		ClientSecret: config.ClientSecret,
 		RedirectURL:  config.RedirectURL,
 		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{oidc.ScopeOpenID, "profile", "email"},
+		Scopes:       []string{oidc.ScopeOpenID, "profile", "email", "offline_access"},
 	}
 
 	verifier := provider.Verifier(&oidc.Config{ClientID: config.ClientID})
@@ -95,4 +100,67 @@ type TokenClaims struct {
 	Email             string `json:"email"`
 	Name              string `json:"name"`
 	PreferredUsername string `json:"preferred_username"`
+}
+
+// TokenExchangeResponse Token Exchange 응답 구조체
+type TokenExchangeResponse struct {
+	AccessToken      string `json:"access_token"`
+	ExpiresIn        int    `json:"expires_in"`
+	RefreshToken     string `json:"refresh_token,omitempty"`
+	RefreshExpiresIn int    `json:"refresh_expires_in,omitempty"`
+	TokenType        string `json:"token_type"`
+	IssuedTokenType  string `json:"issued_token_type,omitempty"`
+	Scope            string `json:"scope,omitempty"`
+}
+
+// ExchangeTokenForKubernetes portal-app 토큰을 kubernetes 클라이언트용 토큰으로 교환
+func ExchangeTokenForKubernetes(subjectToken string) (*TokenExchangeResponse, error) {
+	clientID := os.Getenv("OIDC_CLIENT_ID")
+	clientSecret := os.Getenv("OIDC_CLIENT_SECRET")
+	targetAudience := os.Getenv("KUBERNETES_CLIENT_ID")
+	tokenEndpoint := os.Getenv("OIDC_ISSUER_URL") + "/protocol/openid-connect/token"
+
+	if clientID == "" || clientSecret == "" || targetAudience == "" {
+		return nil, fmt.Errorf("token exchange configuration is incomplete")
+	}
+
+	data := url.Values{}
+	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
+	data.Set("subject_token", subjectToken)
+	data.Set("subject_token_type", "urn:ietf:params:oauth:token-type:access_token")
+	data.Set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token")
+	data.Set("audience", targetAudience)
+
+	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token exchange request: %v", err)
+	}
+
+	auth := base64.StdEncoding.EncodeToString([]byte(clientID + ":" + clientSecret))
+	req.Header.Set("Authorization", "Basic "+auth)
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform token exchange: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read token exchange response: %v", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("token exchange failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tokenResp TokenExchangeResponse
+	if err := json.Unmarshal(body, &tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse token exchange response: %v", err)
+	}
+
+	return &tokenResp, nil
 }

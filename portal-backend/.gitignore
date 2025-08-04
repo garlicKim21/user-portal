@@ -21,8 +21,8 @@ go.work
 .env
 *.env
 
-# But allow test.env
-!test.env
+
+test.env
 
 # IDE files
 .vscode/

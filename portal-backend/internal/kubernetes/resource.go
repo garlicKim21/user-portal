@@ -204,19 +204,13 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 								set -e
 								echo "Initializing web terminal environment..."
 								
-								# Create kubelogin cache directory
-								mkdir -p /home/user/.kube/cache/oidc-login/
-
-								# Generate cache file name
-								OIDC_ISSUER_URL=$(grep 'oidc-issuer-url' /home/user/.kube/config | cut -d'=' -f2)
-								OIDC_CLIENT_ID=$(grep 'oidc-client-id' /home/user/.kube/config | cut -d'=' -f2)
-								CACHE_KEY_INPUT="--oidc-client-id=$OIDC_CLIENT_ID --oidc-issuer-url=$OIDC_ISSUER_URL"
-								CACHE_FILENAME=$(echo -n "$CACHE_KEY_INPUT" | sha256sum | awk '{print $1}')
-								CACHE_FILE_PATH="/home/user/.kube/cache/oidc-login/$CACHE_FILENAME"
-
-								# Create cache file with ID Token and Refresh Token
-								echo "Creating kubelogin cache with refresh token..."
-								echo "{\"id_token\":\"$ID_TOKEN\",\"refresh_token\":\"$REFRESH_TOKEN\",\"token_type\":\"Bearer\"}" > "$CACHE_FILE_PATH"
+								# Check kubeconfig is available
+								if [ -f /home/user/.kube/config ]; then
+									echo "Kubeconfig found, checking connectivity..."
+									kubectl version --client || echo "kubectl client ready"
+								else
+									echo "Warning: kubeconfig not found"
+								fi
 								
 								# Start ttyd service
 								echo "Starting ttyd service..."
@@ -225,8 +219,6 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 							},
 							Env: []corev1.EnvVar{
 								{Name: "KUBECONFIG", Value: "/home/user/.kube/config"},
-								{Name: "ID_TOKEN", Value: idToken},
-								{Name: "REFRESH_TOKEN", Value: refreshToken}, // Refresh Token 추가
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{

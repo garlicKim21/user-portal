@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -51,6 +52,22 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 		return
 	}
 
+	logger.InfoWithContext(c.Request.Context(), "Performing token exchange for kubernetes access", map[string]any{
+		"user_id": session.UserID,
+	})
+
+	// Access Token을 사용하여 Kubernetes 전용 토큰으로 교환합니다.
+	exchangeResp, err := auth.ExchangeTokenForKubernetes(session.AccessToken)
+	if err != nil {
+		logger.ErrorWithContext(c.Request.Context(), "Failed to exchange token for kubernetes", err, map[string]any{
+			"user_id": session.UserID,
+		})
+		utils.Response.InternalError(c, fmt.Errorf("failed to get kubernetes token: %w", err))
+		return
+	}
+
+	newK8sAccessToken := exchangeResp.AccessToken
+
 	// 사용자 그룹 정보 확인 및 로깅
 	userGroups, err := auth.ExtractUserGroups(session.IDToken)
 	if err != nil {
@@ -67,6 +84,26 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 		})
 	}
 
+	// Token Exchange 수행: portal-app 토큰을 kubernetes 클라이언트용 토큰으로 교환
+	logger.InfoWithContext(c.Request.Context(), "Performing token exchange for kubernetes access", map[string]any{
+		"user_id": session.UserID,
+	})
+
+	tokenResponse, err := auth.ExchangeTokenForKubernetes(session.AccessToken)
+	if err != nil {
+		logger.ErrorWithContext(c.Request.Context(), "Failed to exchange token for kubernetes access", err, map[string]any{
+			"user_id": session.UserID,
+		})
+		utils.Response.Error(c, models.ErrTokenExchangeFailed.WithDetails("User: "+session.UserID).WithCause(err))
+		return
+	}
+
+	logger.InfoWithContext(c.Request.Context(), "Token exchange successful", map[string]any{
+		"user_id":    session.UserID,
+		"token_type": tokenResponse.TokenType,
+		"expires_in": tokenResponse.ExpiresIn,
+	})
+
 	// 웹 콘솔 리소스 생성 (UUID 기반 이름으로 충돌 방지)
 	logger.InfoWithContext(c.Request.Context(), "Creating console resources", map[string]any{
 		"user_id": session.UserID,
@@ -79,7 +116,8 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 		}(),
 	})
 
-	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, session.IDToken, session.RefreshToken)
+	// 교환된 토큰을 전달. Refresh Token은 기존 세션의 것을 사용
+	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, newK8sAccessToken, session.RefreshToken)
 	if err != nil {
 		logger.ErrorWithContext(c.Request.Context(), "Failed to create console resources", err, map[string]any{
 			"user_id": session.UserID,
