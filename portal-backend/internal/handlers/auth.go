@@ -362,5 +362,30 @@ func (h *AuthHandler) cleanupUserResources(userID string) error {
 		}
 	}
 
+	// Ingress 삭제
+	ingresses, err := h.k8sClient.Clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		logger.ErrorWithContext(ctx, "Failed to list ingresses for cleanup", err, map[string]any{
+			"user_id": userID,
+		})
+	} else {
+		for _, ingress := range ingresses.Items {
+			err := h.k8sClient.Clientset.NetworkingV1().Ingresses(namespace).Delete(ctx, ingress.Name, metav1.DeleteOptions{})
+			if err != nil {
+				logger.ErrorWithContext(ctx, "Failed to delete ingress", err, map[string]any{
+					"user_id":      userID,
+					"ingress_name": ingress.Name,
+				})
+			} else {
+				logger.InfoWithContext(ctx, "Successfully deleted ingress", map[string]any{
+					"user_id":      userID,
+					"ingress_name": ingress.Name,
+				})
+			}
+		}
+	}
+
 	return nil
 }

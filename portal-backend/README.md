@@ -144,7 +144,7 @@ KUBECONFIG=~/.kube/config                  # Kubeconfig 파일 경로 (개발 �
 
 ```bash
 # 타겟 클러스터 설정 (Secret에서 관리)
-TARGET_CLUSTER_SERVER=https://<your-target-cluster>:6443  # 타겟 클러스터 서버
+TARGET_CLUSTER_SERVER=https://<target-cluster-api-server>:6443  # 타겟 클러스터 서버
 TARGET_CLUSTER_CA_CERT_DATA=LS0tLS1CRUdJTi...      # CA 인증서 (base64 인코딩)
 
 # kubectl OIDC 설정 (Secret에서 관리)

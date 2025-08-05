@@ -131,12 +131,19 @@ async function launchConsole() {
         
         if (response.ok) {
             const data = await response.json();
+            console.log('Console response data:', data); // 디버깅용
             hideLoading();
             showSuccess('Web terminal started successfully!');
             
-            setTimeout(() => {
-                window.open(data.url, '_blank');
-            }, 1000);
+            if (data.data && data.data.url) {
+                console.log('Opening URL:', data.data.url); // 디버깅용
+                setTimeout(() => {
+                    window.open(data.data.url, '_blank');
+                }, 1000);
+            } else {
+                console.error('URL not found in response:', data); // 디버깅용
+                showError('Console URL not received from server');
+            }
         } else {
             const errorData = await response.json();
             hideLoading();

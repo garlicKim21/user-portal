@@ -39,6 +39,9 @@ rules:
 - apiGroups: [""]
   resources: ["pods/status"]
   verbs: ["get", "list", "watch"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 ---
 # ClusterRoleBinding - 전용 서비스 계정에 권한 부여
 apiVersion: rbac.authorization.k8s.io/v1

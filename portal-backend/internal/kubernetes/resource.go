@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -23,6 +24,7 @@ type ConsoleResource struct {
 	DeploymentName string    `json:"deployment_name"`
 	ServiceName    string    `json:"service_name"`
 	SecretName     string    `json:"secret_name"`
+	IngressName    string    `json:"ingress_name"`
 	PVCName        string    `json:"pvc_name"`
 	Namespace      string    `json:"namespace"`
 	ConsoleURL     string    `json:"console_url"`
@@ -95,6 +97,7 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 		DeploymentName: fmt.Sprintf("console-%s-%s", userID, fullUUID),
 		ServiceName:    fmt.Sprintf("console-svc-%s-%s", userID, fullUUID),
 		SecretName:     fmt.Sprintf("kubeconfig-secret-%s-%s", userID, fullUUID),
+		IngressName:    fmt.Sprintf("console-ingress-%s-%s", userID, fullUUID),
 		PVCName:        fmt.Sprintf("history-%s", userID), // 사용자별 히스토리는 공유
 		Namespace:      config.Namespace,
 		CreatedAt:      time.Now(),
@@ -196,11 +199,17 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 					},
 					Containers: []corev1.Container{
 						{
-							Name:    "web-console",
-							Image:   config.Image,
+							Name:  "web-console",
+							Image: config.Image,
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: config.ContainerPort,
+									Protocol:      corev1.ProtocolTCP,
+								},
+							},
 							Command: []string{"/bin/sh", "-c"},
 							Args: []string{
-								`
+								fmt.Sprintf(`
 								set -e
 								echo "Initializing web terminal environment..."
 								
@@ -212,10 +221,10 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 									echo "Warning: kubeconfig not found"
 								fi
 								
-								# Start ttyd service
-								echo "Starting ttyd service..."
-								exec ttyd --port 8080 --writable --max-clients 1 bash
-								`,
+								# Start ttyd service with base path
+								echo "Starting ttyd service with base path..."
+								exec ttyd --port 8080 --writable --max-clients 1 --base-path /%s/%s bash
+								`, userID, fullUUID),
 							},
 							Env: []corev1.EnvVar{
 								{Name: "KUBECONFIG", Value: "/home/user/.kube/config"},
@@ -317,19 +326,69 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 		return nil, fmt.Errorf("failed to create Service: %v", err)
 	}
 
+	// 5. Ingress 생성 (사용자별 고유 경로)
+	pathType := networkingv1.PathTypePrefix
+	userPath := fmt.Sprintf("/%s/%s", userID, fullUUID) // 사용자ID/UUID 형태
+
+	ingress := &networkingv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      consoleResource.IngressName,
+			Namespace: consoleResource.Namespace,
+			Labels: map[string]string{
+				"app":     "web-console",
+				"user":    userID,
+				"session": resourceID,
+			},
+		},
+		Spec: networkingv1.IngressSpec{
+			IngressClassName: func() *string { s := "cilium"; return &s }(),
+			Rules: []networkingv1.IngressRule{
+				{
+					Host: "console.basphere.dev",
+					IngressRuleValue: networkingv1.IngressRuleValue{
+						HTTP: &networkingv1.HTTPIngressRuleValue{
+							Paths: []networkingv1.HTTPIngressPath{
+								{
+									Path:     userPath,
+									PathType: &pathType,
+									Backend: networkingv1.IngressBackend{
+										Service: &networkingv1.IngressServiceBackend{
+											Name: consoleResource.ServiceName,
+											Port: networkingv1.ServiceBackendPort{
+												Number: config.ServicePort,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err = c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
+	if err != nil {
+		// Deployment와 Secret, Ingress 정리
+		c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Delete(ctx, consoleResource.DeploymentName, metav1.DeleteOptions{})
+		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
+		c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Delete(ctx, consoleResource.IngressName, metav1.DeleteOptions{})
+		return nil, fmt.Errorf("failed to create Ingress: %v", err)
+	}
+
 	// Deployment가 준비될 때까지 대기
 	err = c.WaitForDeploymentReady(consoleResource.DeploymentName, consoleResource.Namespace, 60*time.Second)
 	if err != nil {
 		log.Printf("Deployment %s not ready after timeout, but continuing: %v", consoleResource.DeploymentName, err)
 	}
 
-	// 콘솔 URL 생성 (실제로는 Ingress나 LoadBalancer를 통해 외부 접근 가능한 URL)
-	// 웹 콘솔 외부 접근 URL 생성 (B 클러스터의 Ingress를 통해)
+	// 콘솔 URL 생성 (사용자별 고유 경로)
 	baseURL := os.Getenv("WEB_CONSOLE_BASE_URL")
 	if baseURL == "" {
 		baseURL = "https://console.basphere.dev"
 	}
-	consoleResource.ConsoleURL = fmt.Sprintf("%s/%s", baseURL, resourceID)
+	consoleResource.ConsoleURL = fmt.Sprintf("%s/%s/%s", baseURL, userID, fullUUID)
 
 	return consoleResource, nil
 }
@@ -405,6 +464,12 @@ func (c *Client) DeleteConsoleResources(resource *ConsoleResource) error {
 		log.Printf("Failed to delete Secret %s: %v", resource.SecretName, err)
 	}
 
+	// Ingress 삭제
+	err = c.Clientset.NetworkingV1().Ingresses(resource.Namespace).Delete(ctx, resource.IngressName, metav1.DeleteOptions{})
+	if err != nil {
+		log.Printf("Failed to delete Ingress %s: %v", resource.IngressName, err)
+	}
+
 	// 참고: PVC는 사용자 히스토리 보존을 위해 삭제하지 않음
 
 	return nil
@@ -471,6 +536,16 @@ func (c *Client) cleanupResourcesByLabels(namespace string, labels map[string]st
 		if err == nil {
 			for _, deployment := range deployments.Items {
 				c.Clientset.AppsV1().Deployments(namespace).Delete(ctx, deployment.Name, metav1.DeleteOptions{})
+			}
+		}
+
+		// Ingress 삭제
+		ingresses, err := c.Clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{
+			LabelSelector: labelSelector,
+		})
+		if err == nil {
+			for _, ingress := range ingresses.Items {
+				c.Clientset.NetworkingV1().Ingresses(namespace).Delete(ctx, ingress.Name, metav1.DeleteOptions{})
 			}
 		}
 	}

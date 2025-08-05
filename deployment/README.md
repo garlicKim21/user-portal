@@ -238,7 +238,7 @@ kubectl logs deployment/user-portal-backend -n user-portal | grep -i "console\|a
 
 ```bash
 # 새 이미지로 업데이트
-kubectl set image deployment/user-portal-backend user-portal-backend=projectgreenist/user-portal-backend:0.3.20 -n user-portal
+kubectl set image deployment/user-portal-backend user-portal-backend=projectgreenist/user-portal-backend:0.4.1 -n user-portal
 
 # 업데이트 상태 확인
 kubectl rollout status deployment/user-portal-backend -n user-portal
