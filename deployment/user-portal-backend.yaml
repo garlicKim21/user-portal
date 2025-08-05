@@ -18,7 +18,7 @@ spec:
       serviceAccountName: portal-backend-sa
       containers:
       - name: user-portal-backend
-        image: projectgreenist/user-portal-backend:0.4.2
+        image: projectgreenist/user-portal-backend:0.4.3
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -71,6 +71,8 @@ spec:
         # 웹 콘솔 외부 접근 URL
         - name: WEB_CONSOLE_BASE_URL
           value: "https://console.basphere.dev"
+        - name: INGRESS_CLASS
+          value: "cilium"
         # 웹 터미널 이미지
         - name: CONSOLE_IMAGE
           value: "projectgreenist/web-terminal:0.2.3"

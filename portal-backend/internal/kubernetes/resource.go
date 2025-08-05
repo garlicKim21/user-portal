@@ -341,7 +341,13 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 			},
 		},
 		Spec: networkingv1.IngressSpec{
-			IngressClassName: func() *string { s := "cilium"; return &s }(),
+			IngressClassName: func() *string {
+				ingressClass := os.Getenv("INGRESS_CLASS")
+				if ingressClass == "" {
+					ingressClass = "cilium" // 기본값
+				}
+				return &ingressClass
+			}(),
 			Rules: []networkingv1.IngressRule{
 				{
 					Host: "console.basphere.dev",

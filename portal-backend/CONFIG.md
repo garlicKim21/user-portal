@@ -48,6 +48,7 @@ CONSOLE_CONTAINER_PORT=8080                               # 컨테이너 포트 
 CONSOLE_SERVICE_PORT=80                                   # 서비스 포트 (기본값: 80)
 CONSOLE_TTL_SECONDS=3600                                  # TTL 초 (기본값: 3600)
 WEB_CONSOLE_BASE_URL=https://console.example.com         # 웹 콘솔 베이스 URL
+INGRESS_CLASS=cilium                                     # Ingress Controller 클래스명 (기본값: cilium)
 ```
 
 #### 6. 로깅 설정 (Logging Config)
