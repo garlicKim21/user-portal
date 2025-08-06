@@ -87,8 +87,8 @@ func createTargetClusterConfig() (*rest.Config, error) {
 	return nil, fmt.Errorf("TARGET_CLUSTER_SERVER environment variable is required for multi-cluster setup")
 }
 
-// GenerateKubeconfig B 클러스터 접근을 위한 Bearer Token 설정이 포함된 kubeconfig 생성
-func GenerateKubeconfig(accessToken string) string {
+// GenerateKubeconfig B 클러스터 접근을 위한 kubeconfig 생성 (토큰 제외)
+func GenerateKubeconfig() string {
 	cfg := config.Get()
 
 	// B 클러스터 정보 가져오기 (웹 터미널에서 제어할 타겟 클러스터)
@@ -128,8 +128,8 @@ current-context: token-context
 users:
 - name: token-user
   user:
-    token: %s
-`, clusterConfig, accessToken)
+    token: ""
+`, clusterConfig)
 }
 
 // EncodeCACertToBase64 CA 인증서 파일을 base64로 인코딩

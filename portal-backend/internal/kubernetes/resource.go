@@ -139,7 +139,7 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 	}
 
 	// 2. Secret 생성 (kubeconfig 보안 저장)
-	kubeconfig := GenerateKubeconfig(idToken)
+	kubeconfig := GenerateKubeconfig()
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      consoleResource.SecretName,
@@ -228,13 +228,16 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 							},
 							Env: []corev1.EnvVar{
 								{Name: "KUBECONFIG", Value: "/home/user/.kube/config"},
+								{Name: "K8S_TOKEN", Value: idToken},
+								{Name: "K8S_SERVER", Value: os.Getenv("TARGET_CLUSTER_SERVER")},
+								{Name: "K8S_CA_DATA", Value: os.Getenv("TARGET_CLUSTER_CA_CERT_DATA")},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "kubeconfig",
 									MountPath: "/home/user/.kube/config",
 									SubPath:   "config",
-									//ReadOnly:  true,
+									ReadOnly:  true,
 								},
 								{
 									Name:      "history-storage",

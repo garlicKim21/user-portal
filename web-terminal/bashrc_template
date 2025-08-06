@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# kubectl 래퍼 함수 정의 (환경 변수 방식)
+k() {
+  if [ -n "$K8S_TOKEN" ] && [ -n "$K8S_SERVER" ]; then
+    # CA 인증서 처리
+    if [ -n "$K8S_CA_DATA" ]; then
+      echo "$K8S_CA_DATA" | base64 -d > /tmp/ca.crt 2>/dev/null
+      if [ $? -eq 0 ]; then
+        CA_PATH="--certificate-authority=/tmp/ca.crt"
+      else
+        CA_PATH="--insecure-skip-tls-verify=true"
+      fi
+    else
+      CA_PATH="--insecure-skip-tls-verify=true"
+    fi
+
+    command kubectl --server="$K8S_SERVER" \
+                    --token="$K8S_TOKEN" \
+                    ${CA_PATH} \
+                    "$@"
+  else
+    echo "Error: Kubernetes credentials not available. Please check your session."
+    return 1
+  fi
+}
+
+# alias 및 자동완성 설정
+alias kubectl=k
+alias k=k
+
+# kubectl 자동완성 설정
+if command -v kubectl >/dev/null 2>&1; then
+  source <(kubectl completion bash)
+  complete -o default -F __start_kubectl k
+fi
+
+# 프롬프트 및 기본 PATH 설정
+export PS1='\u@\h:\w\$ '
+export PATH=$PATH:/usr/local/bin
+
+# 세션 정보 표시
+echo "=== Web Terminal Session ==="
+echo "User: $(whoami)"
+echo "Host: $(hostname)"
+# 시간대 설정
+export TZ=Asia/Seoul
+echo "Time: $(date +%Y-%m-%dT%H:%M:%S%z) (KST)"
+echo "==========================" 

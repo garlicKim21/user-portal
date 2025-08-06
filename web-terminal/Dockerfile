@@ -9,7 +9,9 @@ RUN apk update && apk add --no-cache \
     git \
     ca-certificates \
     bash-completion \
-    unzip
+    unzip \
+    jq \
+    tzdata
 
 # kubectl 최신 버전 설치
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
@@ -31,19 +33,16 @@ RUN adduser -D user && \
     mkdir -p /home/user/.kube && \
     chown -R user:user /home/user
 
-# 사용자별 bash 설정 파일 생성 (Alpine에서는 수동 생성 필요)
-RUN touch /home/user/.bashrc && \
-    echo "# kubectl 자동완성 설정" >> /home/user/.bashrc && \
-    echo "source <(kubectl completion bash)" >> /home/user/.bashrc && \
-    echo "alias k=kubectl" >> /home/user/.bashrc && \
-    echo "complete -o default -F __start_kubectl k" >> /home/user/.bashrc && \
-    echo "" >> /home/user/.bashrc && \
-    echo "# 환경변수 설정" >> /home/user/.bashrc && \
-    echo "export KUBECONFIG=~/.kube/config" >> /home/user/.bashrc && \
-    echo "export PS1='\\u@\\h:\\w\$ '" >> /home/user/.bashrc && \
-    echo "export PATH=\$PATH:/usr/local/bin" >> /home/user/.bashrc && \
-    chown user:user /home/user/.bashrc && \
+# 시간대 설정
+ENV TZ=Asia/Seoul
+
+# bashrc 파일 복사
+COPY bashrc_template /home/user/.bashrc
+
+# 권한 설정
+RUN chown user:user /home/user/.bashrc && \
     chmod 644 /home/user/.bashrc
+
 
 # 사용자 전환
 USER user
