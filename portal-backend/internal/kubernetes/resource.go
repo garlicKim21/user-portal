@@ -83,8 +83,8 @@ func GetDefaultConfig() *ConsoleConfig {
 	}
 }
 
-// CreateConsoleResources 웹 콘솔 리소스 생성
-func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*ConsoleResource, error) {
+// CreateConsoleResources 웹 콘솔 리소스 생성 (defaultNamespace 인자 추가)
+func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNamespace string) (*ConsoleResource, error) {
 	config := GetDefaultConfig()
 	// 전체 UUID + timestamp로 고유성 보장
 	fullUUID := uuid.New().String()
@@ -139,7 +139,10 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken string) (*
 	}
 
 	// 2. Secret 생성 (kubeconfig 보안 저장)
-	kubeconfig := GenerateKubeconfig()
+	kubeconfig, errGen := GenerateUserKubeconfig(defaultNamespace)
+	if errGen != nil {
+		return nil, fmt.Errorf("failed to generate user-specific kubeconfig: %v", errGen)
+	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      consoleResource.SecretName,

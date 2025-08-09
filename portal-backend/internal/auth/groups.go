@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -125,4 +126,57 @@ func (ug *UserGroups) ToJSON() string {
 		return "{}"
 	}
 	return string(data)
+}
+
+// RolePriority 역할 우선순위를 정의 (낮을수록 높음)
+var RolePriority = map[string]int{
+	"admins":     1,
+	"developers": 2,
+	"viewers":    3,
+}
+
+// DetermineDefaultNamespace 사용자의 그룹 목록을 기반으로 기본 네임스페이스를 결정합니다.
+func (ug *UserGroups) DetermineDefaultNamespace() string {
+	// cluster-admins 그룹이 있으면 무조건 default 네임스페이스를 반환합니다.
+	if slices.Contains(ug.Groups, "cluster-admins") {
+		return "default"
+	}
+
+	highestPriority := 99
+	candidateNamespaces := make([]string, 0)
+
+	// 다른 그룹들을 순회하며 가장 높은 우선순위의 네임스페이스 후보들을 수집합니다.
+	for _, group := range ug.Groups {
+		parts := strings.SplitN(group, "-", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		namespace := parts[0]
+		role := parts[1]
+
+		priority, ok := RolePriority[role]
+		if !ok {
+			continue
+		}
+
+		if priority < highestPriority {
+			highestPriority = priority
+			candidateNamespaces = []string{namespace}
+			continue
+		}
+
+		if priority == highestPriority {
+			if !slices.Contains(candidateNamespaces, namespace) {
+				candidateNamespaces = append(candidateNamespaces, namespace)
+			}
+		}
+	}
+
+	if len(candidateNamespaces) == 1 {
+		return candidateNamespaces[0]
+	}
+
+	// 후보가 없거나 동률(2개 이상)이면 default 반환
+	return "default"
 }

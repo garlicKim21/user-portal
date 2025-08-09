@@ -1,9 +1,11 @@
 package kubernetes
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"os"
+	"text/template"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -87,49 +89,62 @@ func createTargetClusterConfig() (*rest.Config, error) {
 	return nil, fmt.Errorf("TARGET_CLUSTER_SERVER environment variable is required for multi-cluster setup")
 }
 
-// GenerateKubeconfig B 클러스터 접근을 위한 kubeconfig 생성 (토큰 제외)
-func GenerateKubeconfig() string {
-	cfg := config.Get()
-
-	// B 클러스터 정보 가져오기 (웹 터미널에서 제어할 타겟 클러스터)
-	clusterServer := cfg.Kubernetes.TargetServer
-	if clusterServer == "" {
-		// 개발 환경에서는 동일한 클러스터 사용
-		clusterServer = "https://kubernetes.default.svc"
-	}
-
-	clusterCAData := cfg.Kubernetes.TargetCAData
-	if clusterCAData == "" {
-		clusterCAData = "" // 기본값은 빈 문자열 (insecure-skip-tls-verify 사용)
-	}
-
-	// Bearer Token 기반 kubeconfig 생성
-	var clusterConfig string
-	if clusterCAData != "" {
-		clusterConfig = fmt.Sprintf(`    server: %s
-    certificate-authority-data: %s`, clusterServer, clusterCAData)
-	} else {
-		clusterConfig = fmt.Sprintf(`    server: %s
-    insecure-skip-tls-verify: true`, clusterServer)
-	}
-
-	return fmt.Sprintf(`apiVersion: v1
+// 템플릿 기반 kubeconfig
+const KubeconfigTemplate = `
+apiVersion: v1
 kind: Config
 clusters:
 - name: kubernetes
   cluster:
-%s
+    server: {{.ClusterServer}}
+{{- if .ClusterCAData }}
+    certificate-authority-data: {{.ClusterCAData}}
+{{- else }}
+    insecure-skip-tls-verify: true
+{{- end }}
 contexts:
-- name: token-context
+- name: default-context
   context:
     cluster: kubernetes
-    user: token-user
-current-context: token-context
+    user: user
+    namespace: {{.DefaultNamespace}}
+current-context: default-context
 users:
-- name: token-user
-  user:
-    token: ""
-`, clusterConfig)
+- name: user
+  user: {}
+`
+
+type kubeconfigParams struct {
+	ClusterServer    string
+	ClusterCAData    string
+	DefaultNamespace string
+}
+
+// GenerateUserKubeconfig 사용자의 기본 네임스페이스가 포함된 kubeconfig 생성
+func GenerateUserKubeconfig(defaultNamespace string) (string, error) {
+	cfg := config.Get()
+
+	params := kubeconfigParams{
+		ClusterServer:    cfg.Kubernetes.TargetServer,
+		ClusterCAData:    cfg.Kubernetes.TargetCAData,
+		DefaultNamespace: defaultNamespace,
+	}
+
+	if params.ClusterServer == "" {
+		params.ClusterServer = "https://kubernetes.default.svc"
+	}
+
+	tmpl, err := template.New("kubeconfig").Parse(KubeconfigTemplate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse kubeconfig template: %w", err)
+	}
+
+	var out bytes.Buffer
+	if err := tmpl.Execute(&out, params); err != nil {
+		return "", fmt.Errorf("failed to execute kubeconfig template: %w", err)
+	}
+
+	return out.String(), nil
 }
 
 // EncodeCACertToBase64 CA 인증서 파일을 base64로 인코딩

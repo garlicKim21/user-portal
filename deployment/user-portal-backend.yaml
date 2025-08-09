@@ -18,7 +18,7 @@ spec:
       serviceAccountName: portal-backend-sa
       containers:
       - name: user-portal-backend
-        image: projectgreenist/user-portal-backend:0.4.8
+        image: projectgreenist/user-portal-backend:0.4.9
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -50,7 +50,7 @@ spec:
         # kubectl OIDC 설정 (B 클러스터 접근용)
         - name: KUBECTL_OIDC_CLIENT_ID
           value: "kubernetes"
-        - name: KUBERNETES_CLIENT_ID  # Token Exchange용
+        - name: KUBERNETES_CLIENT_ID # Token Exchange용
           value: "kubernetes"
         - name: KUBECTL_OIDC_CLIENT_SECRET
           valueFrom:
@@ -108,4 +108,4 @@ spec:
   - protocol: TCP
     port: 8080
     targetPort: 8080
-  type: ClusterIP 
+  type: ClusterIP

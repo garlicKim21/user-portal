@@ -64,17 +64,25 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 
 	newK8sAccessToken := exchangeResp.AccessToken
 
-	// 사용자 그룹 정보 확인 (필요시 사용)
-	_, err = auth.ExtractUserGroups(session.IDToken)
+	// 사용자 그룹 정보 확인 및 기본 네임스페이스 결정
+	userGroups, err := auth.ExtractUserGroups(session.IDToken)
 	if err != nil {
 		logger.WarnWithContext(c.Request.Context(), "Failed to extract user groups", map[string]any{
 			"user_id": session.UserID,
 			"error":   err.Error(),
 		})
+		userGroups = &auth.UserGroups{}
 	}
 
-	// 웹 콘솔 리소스 생성
-	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, newK8sAccessToken, session.RefreshToken)
+	defaultNamespace := userGroups.DetermineDefaultNamespace()
+	logger.InfoWithContext(c.Request.Context(), "Determined default namespace for user", map[string]any{
+		"user_id":           session.UserID,
+		"groups":            userGroups.Groups,
+		"default_namespace": defaultNamespace,
+	})
+
+	// 웹 콘솔 리소스 생성 (기본 네임스페이스 전달)
+	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, newK8sAccessToken, session.RefreshToken, defaultNamespace)
 	if err != nil {
 		logger.ErrorWithContext(c.Request.Context(), "Failed to create console resources", err, map[string]any{
 			"user_id": session.UserID,
