@@ -18,7 +18,7 @@ spec:
       serviceAccountName: portal-backend-sa
       containers:
       - name: user-portal-backend
-        image: projectgreenist/user-portal-backend:0.4.9
+        image: projectgreenist/user-portal-backend:0.4.12
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
@@ -75,7 +75,7 @@ spec:
           value: "cilium"
         # 웹 터미널 이미지
         - name: CONSOLE_IMAGE
-          value: "projectgreenist/web-terminal:0.2.9"
+          value: "projectgreenist/web-terminal:0.2.11"
         resources:
           requests:
             memory: "128Mi"

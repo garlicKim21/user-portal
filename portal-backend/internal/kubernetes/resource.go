@@ -15,6 +15,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"portal-backend/internal/auth"
 )
 
 // ConsoleResource 웹 콘솔 리소스 정보
@@ -50,7 +52,7 @@ func GetDefaultConfig() *ConsoleConfig {
 	image := os.Getenv("CONSOLE_IMAGE")
 	if image == "" {
 		// 커스텀 웹 터미널 이미지 사용 (kubectl + ttyd + 간소화된 버전)
-		image = "projectgreenist/web-terminal:0.2.3"
+		image = "projectgreenist/web-terminal:0.2.11"
 	}
 
 	containerPort := int32(8080)
@@ -234,6 +236,9 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 								{Name: "K8S_TOKEN", Value: idToken},
 								{Name: "K8S_SERVER", Value: os.Getenv("TARGET_CLUSTER_SERVER")},
 								{Name: "K8S_CA_DATA", Value: os.Getenv("TARGET_CLUSTER_CA_CERT_DATA")},
+								{Name: "USER_ID", Value: userID},
+								{Name: "DEFAULT_NAMESPACE", Value: defaultNamespace},
+								{Name: "USER_ROLES", Value: getUserRoles(userID, idToken)},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -244,8 +249,8 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 								},
 								{
 									Name:      "history-storage",
-									MountPath: "/home/user/.bash_history",
-									SubPath:   "bash_history",
+									MountPath: "/home/user/.bash_history.d", // 디렉토리로 마운트
+									SubPath:   "bash_history",               // PVC 내부의 디렉토리
 								},
 							},
 							Resources: corev1.ResourceRequirements{
@@ -570,4 +575,126 @@ func parseInt32(s string) int32 {
 	var result int32
 	fmt.Sscanf(s, "%d", &result)
 	return result
+}
+
+// getUserRoles 사용자의 역할 정보를 문자열로 반환
+func getUserRoles(userID, idToken string) string {
+	userGroups, err := auth.ExtractUserGroups(idToken)
+	if err != nil {
+		return "unknown"
+	}
+
+	if len(userGroups.Groups) == 0 {
+		return "user"
+	}
+
+	// 역할 우선순위에 따라 정렬
+	roles := make([]string, 0)
+
+	// cluster-admins가 있으면 최우선
+	if contains(userGroups.Groups, "cluster-admins") {
+		roles = append(roles, "cluster-admin")
+	}
+
+	// 네임스페이스별 역할 추가
+	namespaceRoles := make(map[string]string)
+	for _, group := range userGroups.Groups {
+		parts := splitN(group, "-", 2)
+		if len(parts) == 2 {
+			namespace := parts[0]
+			role := parts[1]
+
+			// 이미 더 높은 권한이 있으면 건너뛰기
+			if existingRole, exists := namespaceRoles[namespace]; exists {
+				if getRolePriority(role) < getRolePriority(existingRole) {
+					namespaceRoles[namespace] = role
+				}
+			} else {
+				namespaceRoles[namespace] = role
+			}
+		}
+	}
+
+	// 네임스페이스별 역할을 정렬하여 추가
+	for namespace, role := range namespaceRoles {
+		roles = append(roles, fmt.Sprintf("%s-%s", namespace, role))
+	}
+
+	// 역할이 없으면 기본값
+	if len(roles) == 0 {
+		return "user"
+	}
+
+	// "/"로 구분하여 반환
+	return join(roles, "/")
+}
+
+// contains 문자열 슬라이스에 특정 문자열이 포함되어 있는지 확인
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// splitN 문자열을 구분자로 분할 (Go 1.18 이전 버전 호환)
+func splitN(s, sep string, n int) []string {
+	if n <= 0 {
+		return nil
+	}
+
+	result := make([]string, 0, n)
+	start := 0
+	for i := 0; i < n-1; i++ {
+		idx := index(s[start:], sep)
+		if idx == -1 {
+			break
+		}
+		result = append(result, s[start:start+idx])
+		start = start + idx + len(sep)
+	}
+	result = append(result, s[start:])
+	return result
+}
+
+// index 문자열에서 하위 문자열의 인덱스 반환
+func index(s, substr string) int {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return i
+		}
+	}
+	return -1
+}
+
+// join 문자열 슬라이스를 구분자로 연결
+func join(slice []string, sep string) string {
+	if len(slice) == 0 {
+		return ""
+	}
+	if len(slice) == 1 {
+		return slice[0]
+	}
+
+	result := slice[0]
+	for i := 1; i < len(slice); i++ {
+		result += sep + slice[i]
+	}
+	return result
+}
+
+// getRolePriority 역할의 우선순위 반환 (낮을수록 높음)
+func getRolePriority(role string) int {
+	switch role {
+	case "admin":
+		return 1
+	case "developer":
+		return 2
+	case "viewer":
+		return 3
+	default:
+		return 99
+	}
 }

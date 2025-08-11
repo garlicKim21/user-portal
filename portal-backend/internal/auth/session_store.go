@@ -36,6 +36,12 @@ func (s *SessionStore) CreateSession(userID, accessToken, idToken, refreshToken 
 		return "", fmt.Errorf("failed to generate session ID: %v", err)
 	}
 
+	// CSRF 보호용 State 생성 (16바이트 랜덤)
+	state, err := s.generateState()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate state: %v", err)
+	}
+
 	session := &models.Session{
 		SessionID:    sessionID,
 		UserID:       userID,
@@ -43,6 +49,7 @@ func (s *SessionStore) CreateSession(userID, accessToken, idToken, refreshToken 
 		IDToken:      idToken,
 		RefreshToken: refreshToken,
 		ExpiresAt:    expiresAt,
+		State:        state,
 		CreatedAt:    time.Now(),
 	}
 
@@ -82,6 +89,15 @@ func (s *SessionStore) DeleteSession(sessionID string) {
 // generateSessionID 세션 ID 생성
 func (s *SessionStore) generateSessionID() (string, error) {
 	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
+// generateState CSRF 보호용 State 생성
+func (s *SessionStore) generateState() (string, error) {
+	bytes := make([]byte, 16)
 	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}

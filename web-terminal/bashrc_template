@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# bash 히스토리 설정
+export HISTFILE="/home/user/.bash_history.d/bash_history"
+export HISTSIZE=10000
+export HISTFILESIZE=20000
+export HISTCONTROL=ignoreboth:erasedups
+
 # kubectl 래퍼 함수 정의 (환경 변수 방식)
 k() {
   if [ -n "$K8S_TOKEN" ] && [ -n "$K8S_SERVER" ]; then
@@ -36,14 +42,22 @@ if command -v kubectl >/dev/null 2>&1; then
 fi
 
 # 프롬프트 및 기본 PATH 설정
-export PS1='\u@\h:\w\$ '
+export PS1='\u@secure-terminal-${USER_ID}:\w\$ '
 export PATH=$PATH:/usr/local/bin
 
 # 세션 정보 표시
 echo "=== Web Terminal Session ==="
-echo "User: $(whoami)"
-echo "Host: $(hostname)"
+echo "User: ${USER_ID}"
+echo "Host: secure-terminal-${USER_ID}"
+echo "Namespace: ${DEFAULT_NAMESPACE}"
+echo "Roles: ${USER_ROLES}"
 # 시간대 설정
 export TZ=Asia/Seoul
 echo "Time: $(date +%Y-%m-%dT%H:%M:%S%z) (KST)"
-echo "==========================" 
+echo "=========================="
+
+# 히스토리 파일 확인 및 생성
+if [ ! -f "$HISTFILE" ]; then
+    touch "$HISTFILE"
+    chmod 644 "$HISTFILE"
+fi 

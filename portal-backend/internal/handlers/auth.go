@@ -22,15 +22,22 @@ import (
 type AuthHandler struct {
 	oidcProvider *auth.OIDCProvider
 	sessionStore *auth.SessionStore
+	jwtManager   *auth.JWTManager
 	tempSessions map[string]*models.Session
 	k8sClient    *kubernetes.Client
 }
 
 // NewAuthHandler 새로운 인증 핸들러 생성
 func NewAuthHandler(oidcProvider *auth.OIDCProvider, k8sClient *kubernetes.Client) (*AuthHandler, error) {
+	jwtManager, err := auth.NewJWTManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create JWT manager: %w", err)
+	}
+
 	return &AuthHandler{
 		oidcProvider: oidcProvider,
 		sessionStore: auth.NewSessionStore(),
+		jwtManager:   jwtManager,
 		tempSessions: make(map[string]*models.Session),
 		k8sClient:    k8sClient,
 	}, nil
@@ -126,10 +133,21 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 		token.Expiry,
 	)
 	if err != nil {
-		logger.ErrorWithContext(c.Request.Context(), "Failed to generate JWT token", err, map[string]any{
+		logger.ErrorWithContext(c.Request.Context(), "Failed to create session", err, map[string]any{
 			"user_id": claims.Subject,
 		})
-		utils.Response.InternalError(c, fmt.Errorf("failed to generate session token: %w", err))
+		utils.Response.InternalError(c, fmt.Errorf("failed to create session: %w", err))
+		return
+	}
+
+	// JWT 토큰 생성 (세션 ID 포함)
+	jwtToken, err := h.jwtManager.GenerateToken(userID, sessionID, token.Expiry)
+	if err != nil {
+		logger.ErrorWithContext(c.Request.Context(), "Failed to generate JWT token", err, map[string]any{
+			"user_id":    claims.Subject,
+			"session_id": sessionID,
+		})
+		utils.Response.InternalError(c, fmt.Errorf("failed to generate JWT token: %w", err))
 		return
 	}
 
@@ -143,9 +161,10 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 		"session_id": sessionID,
 	})
 
+	// JWT 토큰을 쿠키에 설정
 	cookie := &http.Cookie{
-		Name:     "portal-session",
-		Value:    sessionID,
+		Name:     "portal-jwt",
+		Value:    jwtToken,
 		Path:     "/",
 		Domain:   "",
 		MaxAge:   3600,
@@ -160,50 +179,60 @@ func (h *AuthHandler) HandleCallback(c *gin.Context) {
 
 // HandleGetUser 사용자 정보 조회
 func (h *AuthHandler) HandleGetUser(c *gin.Context) {
-	tokenString, err := c.Cookie("portal-session")
+	jwtToken, err := c.Cookie("portal-jwt")
 	if err != nil {
-		utils.Response.Error(c, models.ErrSessionNotFound.WithDetails("Session token cookie not found"))
+		utils.Response.Error(c, models.ErrSessionNotFound.WithDetails("JWT token cookie not found"))
 		return
 	}
 
-	claims, err := h.sessionStore.GetSession(tokenString)
+	// JWT 토큰 검증
+	claims, err := h.jwtManager.ValidateToken(jwtToken)
 	if err != nil {
 		logger.WarnWithContext(c.Request.Context(), "Invalid JWT token received", map[string]any{
 			"error": err.Error(),
 		})
-		utils.Response.Error(c, models.ErrTokenInvalid.WithDetails("Session token validation failed").WithCause(err))
+		utils.Response.Error(c, models.ErrTokenInvalid.WithDetails("JWT token validation failed").WithCause(err))
 		return
 	}
 
-	c.Set("user_id", claims.UserID)
-	ctx := context.WithValue(c.Request.Context(), logger.UserIDKey, claims.UserID)
+	// 세션에서 사용자 정보 조회
+	session, err := h.sessionStore.GetSession(claims.SessionID)
+	if err != nil {
+		logger.WarnWithContext(c.Request.Context(), "Session not found", map[string]any{
+			"session_id": claims.SessionID,
+			"error":      err.Error(),
+		})
+		utils.Response.Error(c, models.ErrSessionNotFound.WithDetails("Session not found").WithCause(err))
+		return
+	}
+
+	c.Set("user_id", session.UserID)
+	ctx := context.WithValue(c.Request.Context(), logger.UserIDKey, session.UserID)
 	c.Request = c.Request.WithContext(ctx)
 
 	utils.Response.Success(c, models.UserInfo{
-		UserID:   claims.UserID,
+		UserID:   session.UserID,
 		LoggedIn: true,
 	})
 }
 
 // GetSession JWT에서 세션 정보 조회
 func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
-	tokenString, err := c.Cookie("portal-session")
+	jwtToken, err := c.Cookie("portal-jwt")
 	if err != nil {
-		return nil, models.ErrSessionNotFound.WithDetails("Session token cookie not found")
+		return nil, models.ErrSessionNotFound.WithDetails("JWT token cookie not found")
 	}
 
-	claims, err := h.sessionStore.GetSession(tokenString)
+	// JWT 토큰 검증
+	claims, err := h.jwtManager.ValidateToken(jwtToken)
 	if err != nil {
-		return nil, models.ErrTokenInvalid.WithDetails("Session token validation failed").WithCause(err)
+		return nil, models.ErrTokenInvalid.WithDetails("JWT token validation failed").WithCause(err)
 	}
 
-	session := &models.Session{
-		AccessToken:  claims.AccessToken,
-		IDToken:      claims.IDToken,
-		RefreshToken: claims.RefreshToken,
-		UserID:       claims.UserID,
-		ExpiresAt:    claims.ExpiresAt,
-		CreatedAt:    claims.CreatedAt,
+	// 세션에서 사용자 정보 조회
+	session, err := h.sessionStore.GetSession(claims.SessionID)
+	if err != nil {
+		return nil, models.ErrSessionNotFound.WithDetails("Session not found").WithCause(err)
 	}
 
 	return session, nil
@@ -213,14 +242,20 @@ func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
 func (h *AuthHandler) HandleLogout(c *gin.Context) {
 	var idTokenHint string
 	var userID string
-	sessionID, err := c.Cookie("portal-session")
+	
+	// JWT 토큰에서 세션 정보 조회
+	jwtToken, err := c.Cookie("portal-jwt")
 	if err == nil {
-		session, sessionErr := h.sessionStore.GetSession(sessionID)
-		if sessionErr == nil {
-			idTokenHint = session.IDToken
-			userID = session.UserID
+		claims, jwtErr := h.jwtManager.ValidateToken(jwtToken)
+		if jwtErr == nil {
+			session, sessionErr := h.sessionStore.GetSession(claims.SessionID)
+			if sessionErr == nil {
+				idTokenHint = session.IDToken
+				userID = session.UserID
+				// 세션 삭제
+				h.sessionStore.DeleteSession(claims.SessionID)
+			}
 		}
-		h.sessionStore.DeleteSession(sessionID)
 	}
 
 	// 사용자 관련 쿠버네티스 리소스 정리
@@ -236,8 +271,9 @@ func (h *AuthHandler) HandleLogout(c *gin.Context) {
 		}
 	}
 
+	// JWT 쿠키 삭제
 	http.SetCookie(c.Writer, &http.Cookie{
-		Name:     "portal-session",
+		Name:     "portal-jwt",
 		Value:    "",
 		MaxAge:   -1,
 		Path:     "/",

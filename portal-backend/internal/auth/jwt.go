@@ -10,11 +10,9 @@ import (
 
 // JWTClaims JWT 클레임 구조체
 type JWTClaims struct {
-	UserID       string    `json:"user_id"`
-	AccessToken  string    `json:"access_token"`
-	IDToken      string    `json:"id_token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
+	UserID    string    `json:"user_id"`
+	SessionID string    `json:"session_id"`
+	ExpiresAt time.Time `json:"expires_at"`
 	jwt.RegisteredClaims
 }
 
@@ -36,13 +34,11 @@ func NewJWTManager() (*JWTManager, error) {
 }
 
 // GenerateToken JWT 토큰 생성
-func (j *JWTManager) GenerateToken(userID, accessToken, idToken, refreshToken string, expiresAt time.Time) (string, error) {
+func (j *JWTManager) GenerateToken(userID, sessionID string, expiresAt time.Time) (string, error) {
 	claims := JWTClaims{
-		UserID:       userID,
-		AccessToken:  accessToken,
-		IDToken:      idToken,
-		RefreshToken: refreshToken,
-		ExpiresAt:    expiresAt,
+		UserID:    userID,
+		SessionID: sessionID,
+		ExpiresAt: expiresAt,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)), // JWT 자체는 24시간 유효
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
