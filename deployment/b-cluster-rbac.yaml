@@ -1,8 +1,6 @@
 # =================================================================
 # 1. 역할 정의 (ClusterRole)
-# 기존 역할을 재사용하고, 네임스페이스 관리자 역할을 추가합니다.
 # =================================================================
-# Viewer Role (기존과 동일, 변경 없음)
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -13,7 +11,6 @@ rules:
   resources: [ "pods", "services", "deployments", "ingresses", "configmaps" ]
   verbs: [ "get", "list", "watch" ]
 ---
-# Developer Role (기존과 동일, 변경 없음)
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -26,7 +23,6 @@ rules:
   resources: [ "pods/log" ]
   verbs: [ "get", "list" ]
 ---
-# [신규] Namespaced Admin Role - 특정 네임스페이스 내에서만 모든 권한
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -39,7 +35,6 @@ rules:
 # =================================================================
 # 2. 클러스터 전체 권한 부여 (ClusterRoleBinding)
 # =================================================================
-# 'kim' (cluster-admins 그룹)에게 클러스터 전체 관리자 권한 부여
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -47,17 +42,16 @@ metadata:
   name: cluster-admins-binding
 subjects:
 - kind: Group
-  name: cluster-admins # Keycloak 그룹: cluster-admins
+  name: cluster-admins
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
-  name: cluster-admin # 쿠버네티스 기본 제공 ClusterRole
+  name: cluster-admin
   apiGroup: rbac.authorization.k8s.io
 
 # =================================================================
 # 3. 'blue' 네임스페이스 권한 부여 (RoleBinding)
 # =================================================================
-# 'yoon' (blue-admins 그룹)에게 'blue' 네임스페이스 관리자 권한 부여
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -66,14 +60,13 @@ metadata:
   namespace: blue
 subjects:
 - kind: Group
-  name: blue-admins # Keycloak 그룹: blue-admins
+  name: blue-admins
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
-  name: namespaced-admin-role # 위에서 정의한 네임스페이스 관리자 역할
+  name: namespaced-admin-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# 'byun' (blue-developers 그룹)에게 'blue' 네임스페이스 개발자 권한 부여
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -81,14 +74,13 @@ metadata:
   namespace: blue
 subjects:
 - kind: Group
-  name: blue-developers # Keycloak 그룹: blue-developers
+  name: blue-developers
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
   name: developer-role
   apiGroup: rbac.authorization.k8s.io
 ---
-# 'kang' (blue-viewers 그룹)에게 'blue' 네임스페이스 뷰어 권한 부여
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -96,7 +88,7 @@ metadata:
   namespace: blue
 subjects:
 - kind: Group
-  name: blue-viewers # Keycloak 그룹: blue-viewers
+  name: blue-viewers
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -106,7 +98,34 @@ roleRef:
 # =================================================================
 # 4. 'red' 네임스페이스 권한 부여 (RoleBinding)
 # =================================================================
-# 'byun'과 'kang' (red-viewers 그룹)에게 'red' 네임스페이스 뷰어 권한 부여
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: red-admins-binding
+  namespace: red
+subjects:
+- kind: Group
+  name: red-admins
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: namespaced-admin-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: red-developers-binding
+  namespace: red
+subjects:
+- kind: Group
+  name: red-developers
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: developer-role
+  apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -115,7 +134,7 @@ metadata:
   namespace: red
 subjects:
 - kind: Group
-  name: red-viewers # Keycloak 그룹: red-viewers
+  name: red-viewers
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
