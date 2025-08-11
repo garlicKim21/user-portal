@@ -11,6 +11,13 @@ User Portal은 다중 클러스터 환경에서 동작하며, 민감한 정보�
 - **A 클러스터**: 포털 애플리케이션 실행
 - **B 클러스터**: 웹 콘솔 Pod 생성 대상
 
+### 🆕 최신 개선사항
+
+- **JWT 토큰 구조 최적화**: 토큰 중첩 제거로 성능 및 보안 향상
+- **웹 콘솔 개인화**: 사용자별 맞춤형 터미널 정보 표시
+- **명령어 히스토리 지속성**: PVC 기반 사용자별 히스토리 보존
+- **CSRF 보호**: State 기반 보안 강화
+
 ## 🔐 Secret 관리
 
 ### Secret 구조
@@ -139,7 +146,10 @@ kubectl apply -f rbac.yaml
 - `LOG_LEVEL` - 로그 레벨
 - `GIN_MODE` - Gin 모드
 - `CONSOLE_NAMESPACE` - 웹 콘솔 네임스페이스
-- `CONSOLE_IMAGE` - 웹 콘솔 이미지
+- `CONSOLE_IMAGE` - 웹 콘솔 이미지 (기본값: projectgreenist/web-terminal:0.2.11)
+- `CONSOLE_CONTAINER_PORT` - 웹 콘솔 컨테이너 포트 (기본값: 8080)
+- `CONSOLE_SERVICE_PORT` - 웹 콘솔 서비스 포트 (기본값: 80)
+- `CONSOLE_TTL_SECONDS` - 웹 콘솔 TTL (기본값: 3600초)
 
 ## 🔍 모니터링
 
@@ -174,6 +184,25 @@ kubectl get secrets -n user-portal
 
 # Secret 상세 정보
 kubectl describe secret user-portal-secrets -n user-portal
+```
+
+### 웹 콘솔 상태 확인
+
+```bash
+# 웹 콘솔 Pod 상태 확인
+kubectl get pods -n web-console -l app=web-console
+
+# 웹 콘솔 Deployment 상태 확인
+kubectl get deployments -n web-console -l app=web-console
+
+# 웹 콘솔 Service 상태 확인
+kubectl get services -n web-console -l app=web-console
+
+# 웹 콘솔 PVC 상태 확인 (명령어 히스토리)
+kubectl get pvc -n web-console -l app=web-console
+
+# 특정 사용자의 웹 콘솔 리소스 확인
+kubectl get all -l app=web-console,user=<user-id> -n web-console
 ```
 
 ## 🚨 문제 해결
@@ -214,6 +243,33 @@ kubectl describe secret user-portal-secrets -n user-portal
    
    # CA 인증서 확인
    kubectl get secret user-portal-secrets -n user-portal -o jsonpath='{.data.target-cluster-ca-cert-data}' | base64 -d
+   ```
+
+5. **웹 콘솔 생성 실패**
+   ```bash
+   # 웹 콘솔 네임스페이스 확인
+   kubectl get namespace web-console
+   
+   # 웹 콘솔 이미지 확인
+   kubectl get deployment -n web-console -o jsonpath='{.items[0].spec.template.spec.containers[0].image}'
+   
+   # PVC 상태 확인
+   kubectl get pvc -n web-console
+   
+   # 웹 콘솔 Pod 로그 확인
+   kubectl logs -f <web-console-pod-name> -n web-console
+   ```
+
+6. **명령어 히스토리 문제**
+   ```bash
+   # PVC 마운트 상태 확인
+   kubectl describe pod <web-console-pod-name> -n web-console | grep -A 10 "Volumes:"
+   
+   # 히스토리 파일 권한 확인
+   kubectl exec <web-console-pod-name> -n web-console -- ls -la /home/user/.bash_history.d/
+   
+   # 환경 변수 확인
+   kubectl exec <web-console-pod-name> -n web-console -- env | grep -E "(USER_ID|DEFAULT_NAMESPACE|USER_ROLES)"
    ```
 
 ### 로그 분석
@@ -266,6 +322,32 @@ kubectl patch secret user-portal-secrets -n user-portal \
 kubectl rollout restart deployment/user-portal-backend -n user-portal
 ```
 
+### 웹 콘솔 업데이트
+
+```bash
+# 웹 콘솔 이미지 업데이트
+kubectl set image deployment/<web-console-deployment> web-console=projectgreenist/web-terminal:0.2.11 -n web-console
+
+# 웹 콘솔 업데이트 상태 확인
+kubectl rollout status deployment/<web-console-deployment> -n web-console
+
+# 웹 콘솔 롤백
+kubectl rollout undo deployment/<web-console-deployment> -n web-console
+```
+
+### 웹 콘솔 리소스 정리
+
+```bash
+# 특정 사용자의 웹 콘솔 리소스 정리
+kubectl delete all -l app=web-console,user=<user-id> -n web-console
+
+# 만료된 웹 콘솔 리소스 정리
+kubectl delete all -l app=web-console -n web-console
+
+# 웹 콘솔 PVC 정리 (히스토리도 함께 삭제)
+kubectl delete pvc -l app=web-console -n web-console
+```
+
 ## 📊 성능 모니터링
 
 ### 리소스 사용량 확인
@@ -297,6 +379,10 @@ kubectl exec <pod-name> -n user-portal -- curl http://localhost:8080/debug/pprof
 - [ ] 리소스 제한이 설정되었는지 확인
 - [ ] 헬스체크가 작동하는지 확인
 - [ ] 로그 레벨이 적절히 설정되었는지 확인
+- [ ] 웹 콘솔 네임스페이스 격리가 설정되었는지 확인
+- [ ] 웹 콘솔 PVC 권한이 적절히 설정되었는지 확인
+- [ ] 웹 콘솔 이미지가 최신 보안 패치가 적용되었는지 확인
+- [ ] 사용자별 웹 콘솔 격리가 제대로 작동하는지 확인
 
 ## 📚 관련 문서
 
