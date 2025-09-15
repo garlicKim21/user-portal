@@ -13,9 +13,10 @@ import {
 
 interface DashboardProps {
   onLogout: () => void;
+  user?: any; // OIDC 사용자 정보
 }
 
-export function Dashboard({ onLogout }: DashboardProps) {
+export function Dashboard({ onLogout, user }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 

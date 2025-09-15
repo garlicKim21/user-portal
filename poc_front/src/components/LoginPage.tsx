@@ -19,13 +19,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     if (username && password) {
       setIsLoading(true);
       
-      // 실제로는 API 호출이 필요하지만, 여기서는 시뮬레이션
+      // Keycloak OIDC 로그인으로 리다이렉트
       try {
-        await new Promise(resolve => setTimeout(resolve, 1500)); // 1.5초 로딩 시뮬레이션
-        onLogin();
+        onLogin(); // 이제 onLogin은 Keycloak 로그인 함수
       } catch (error) {
         console.error('로그인 실패:', error);
-      } finally {
         setIsLoading(false);
       }
     }
