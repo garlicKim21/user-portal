@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { WebTerminal } from './WebTerminal';
 import { 
   BarChart3, 
   Terminal, 
@@ -19,6 +20,7 @@ interface DashboardProps {
 export function Dashboard({ onLogout, user }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
 
   const menuItems = [
     {
@@ -51,10 +53,18 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     }
   ];
 
-  const handleMenuClick = (menuId: string, url: string) => {
+  const handleMenuClick = (menuId: string) => {
     setActiveMenu(menuId);
-    // 실제 환경에서는 새 탭에서 해당 URL을 열거나 내부 라우팅을 처리
-    console.log(`Navigate to ${url}`);
+  };
+
+  const handleOpenService = (menuId: string, url: string) => {
+    if (menuId === 'terminal') {
+      // 터미널의 경우 팝업으로 열기
+      setIsTerminalOpen(true);
+    } else {
+      // 다른 메뉴의 경우 새 탭에서 열기
+      window.open(url, '_blank');
+    }
   };
 
   return (
@@ -99,7 +109,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
                       ? 'bg-sidebar-primary text-sidebar-primary-foreground' 
                       : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                   }`}
-                  onClick={() => handleMenuClick(item.id, item.url)}
+                  onClick={() => handleMenuClick(item.id)}
                 >
                   {item.iconImage ? (
                     <img 
@@ -148,27 +158,32 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
                 <div className="flex items-center">
                   {menuItems.find(item => item.id === activeMenu)?.iconImage && (
                     <img 
-                      src={menuItems.find(item => item.id === activeMenu)?.iconImage} 
-                      alt={`${menuItems.find(item => item.id === activeMenu)?.name} 로고`} 
+                      src={menuItems.find(item => item.id === activeMenu)?.iconImage || ''} 
+                      alt={`${menuItems.find(item => item.id === activeMenu)?.name || ''} 로고`} 
                       className="h-16 w-auto mr-6"
                     />
                   )}
-                  {/* text-2xl 대신 원하는 텍스트 크기 유틸리티를 사용하세요. 예: text-lg, text-xl, text-3xl 등 */}
                   <CardTitle className="text-3xl font-bold mr-6">
-                    {menuItems.find(item => item.id === activeMenu)?.name}
+                    {menuItems.find(item => item.id === activeMenu)?.name || ''}
                   </CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
                   {activeMenu === 'grafana' && 'Grafana 대시보드에 연결됩니다. 데이터 시각화 및 모니터링을 위한 도구입니다.'}
-                  {activeMenu === 'terminal' && 'Secure Web Terminal에 연결됩니다. 안전한 웹 기반 터미널 환경을 제공합니다.'}
+                  {activeMenu === 'terminal' && 'Secure Web Terminal을 팝업으로 열어 안전한 웹 기반 터미널 환경을 제공합니다.'}
                   {activeMenu === 'jenkins' && 'Jenkins CI/CD 파이프라인에 연결됩니다. 빌드 및 배포 자동화를 관리합니다.'}
                   {activeMenu === 'argocd' && 'ArgoCD GitOps 플랫폼에 연결됩니다. Kubernetes 애플리케이션 배포를 관리합니다.'}
                 </p>
-                <div className="mt-4">
+                <div className="mt-6">
                   <Button
-                    onClick={() => window.open(menuItems.find(item => item.id === activeMenu)?.url, '_blank')}
+                    size="lg"
+                    onClick={() => {
+                      const selectedItem = menuItems.find(item => item.id === activeMenu);
+                      if (selectedItem) {
+                        handleOpenService(selectedItem.id, selectedItem.url);
+                      }
+                    }}
                   >
                     {menuItems.find(item => item.id === activeMenu)?.name} 열기
                   </Button>
@@ -209,6 +224,13 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
           )}
         </main>
       </div>
+
+      {/* Web Terminal Popup */}
+      <WebTerminal 
+        isOpen={isTerminalOpen}
+        onClose={() => setIsTerminalOpen(false)}
+        user={user}
+      />
     </div>
   );
 }
