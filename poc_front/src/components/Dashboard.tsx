@@ -25,24 +25,28 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       id: 'grafana',
       name: 'Grafana',
       icon: BarChart3,
+      iconImage: '/grafana.svg',
       url: 'https://grafana.miribit.cloud/auth/login?return_url=https://grafana.miribit.cloud/applications'
     },
     {
       id: 'terminal',
       name: 'Secure Web Terminal',
       icon: Terminal,
+      iconImage: null,
       url: '#terminal'
     },
     {
       id: 'jenkins',
       name: 'Jenkins',
       icon: Wrench,
+      iconImage: '/jenkins.png',
       url: 'https://jenkins.miribit.cloud'
     },
     {
       id: 'argocd',
       name: 'ArgoCD',
       icon: GitBranch,
+      iconImage: '/argocd.png',
       url: 'https://argocd.miribit.cloud/auth/login?return_url=https://argocd.miribit.cloud/applications'
     }
   ];
@@ -61,7 +65,14 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
         <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center justify-between">
             {sidebarOpen && (
-              <h2 className="text-sidebar-foreground">빅데이터 분석 플랫폼 사용자 포털</h2>
+              <div className="flex flex-col items-center space-y-2">
+                <img 
+                  src="/skhynix.png" 
+                  alt="SK하이닉스 로고" 
+                  className="h-8 w-auto"
+                />
+                <h2 className="text-sidebar-foreground text-center text-sm">빅데이터 분석 플랫폼 사용자 포털</h2>
+              </div>
             )}
             <Button
               variant="ghost"
@@ -90,7 +101,15 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
                   }`}
                   onClick={() => handleMenuClick(item.id, item.url)}
                 >
-                  <Icon className={`h-5 w-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                  {item.iconImage ? (
+                    <img 
+                      src={item.iconImage} 
+                      alt={`${item.name} 아이콘`} 
+                      className={`h-5 w-5 ${sidebarOpen ? 'mr-3' : ''}`}
+                    />
+                  ) : (
+                    <Icon className={`h-5 w-5 ${sidebarOpen ? 'mr-3' : ''}`} />
+                  )}
                   {sidebarOpen && <span>{item.name}</span>}
                 </Button>
               );
@@ -126,9 +145,19 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
           {activeMenu ? (
             <Card>
               <CardHeader>
-                <CardTitle>
-                  {menuItems.find(item => item.id === activeMenu)?.name}
-                </CardTitle>
+                <div className="flex items-center">
+                  {menuItems.find(item => item.id === activeMenu)?.iconImage && (
+                    <img 
+                      src={menuItems.find(item => item.id === activeMenu)?.iconImage} 
+                      alt={`${menuItems.find(item => item.id === activeMenu)?.name} 로고`} 
+                      className="h-16 w-auto mr-6"
+                    />
+                  )}
+                  {/* text-2xl 대신 원하는 텍스트 크기 유틸리티를 사용하세요. 예: text-lg, text-xl, text-3xl 등 */}
+                  <CardTitle className="text-3xl font-bold mr-6">
+                    {menuItems.find(item => item.id === activeMenu)?.name}
+                  </CardTitle>
+                </div>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">
