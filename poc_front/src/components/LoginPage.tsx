@@ -1,7 +1,5 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 
 interface LoginPageProps {
@@ -9,23 +7,17 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLogin }: LoginPageProps) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleKeycloakLogin = async () => {
+    setIsLoading(true);
     
-    if (username && password) {
-      setIsLoading(true);
-      
+    try {
       // Keycloak OIDC 로그인으로 리다이렉트
-      try {
-        onLogin(); // 이제 onLogin은 Keycloak 로그인 함수
-      } catch (error) {
-        console.error('로그인 실패:', error);
-        setIsLoading(false);
-      }
+      onLogin(); // 이 함수는 AuthWrapper에서 전달받은 login() 함수
+    } catch (error) {
+      console.error('로그인 실패:', error);
+      setIsLoading(false);
     }
   };
 
@@ -46,39 +38,23 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username" className="login-label">사용자명</Label>
-              <Input
-                id="username"
-                type="text"
-                placeholder="사용자명을 입력하세요"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="login-input"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password" className="login-label">비밀번호</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="비밀번호를 입력하세요"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="login-input"
-                required
-              />
+          <div className="space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-muted-foreground">
+                Keycloak SSO를 통해 로그인하세요
+              </p>
+              <p className="text-sm text-muted-foreground">
+                로그인 버튼을 클릭하면 Keycloak 인증 페이지로 이동합니다
+              </p>
             </div>
             <Button 
-              type="submit" 
+              onClick={handleKeycloakLogin}
               className={`w-full login-button ${isLoading ? 'loading' : ''}`}
-              disabled={isLoading || !username || !password}
+              disabled={isLoading}
             >
-              {isLoading ? '로그인 중...' : '로그인'}
+              {isLoading ? '로그인 중...' : 'Keycloak으로 로그인'}
             </Button>
-          </form>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -1,13 +1,30 @@
-import { useOidc } from '@axa-fr/react-oidc';
 import { useEffect } from 'react';
+import { useAuth } from 'react-oidc-context';
 
 export function SilentCallback() {
-  const { login } = useOidc();
+  const { signinSilent } = useAuth();
 
   useEffect(() => {
     // Silent callback 처리
-    login();
-  }, [login]);
+    const handleSilentCallback = async () => {
+      try {
+        console.log('Silent 콜백 처리 시작...');
+        await signinSilent();
+        console.log('Silent 콜백 처리 완료');
+      } catch (error) {
+        console.error('Silent 콜백 처리 중 오류:', error);
+      }
+    };
 
-  return null; // Silent callback은 UI를 표시하지 않음
+    handleSilentCallback();
+  }, [signinSilent]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">세션 갱신 중...</p>
+      </div>
+    </div>
+  );
 }

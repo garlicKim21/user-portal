@@ -25,7 +25,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       id: 'grafana',
       name: 'Grafana',
       icon: BarChart3,
-      url: '#grafana'
+      url: 'https://grafana.miribit.cloud/auth/login?return_url=https://grafana.miribit.cloud/applications'
     },
     {
       id: 'terminal',
@@ -37,13 +37,13 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       id: 'jenkins',
       name: 'Jenkins',
       icon: Wrench,
-      url: '#jenkins'
+      url: 'https://jenkins.miribit.cloud'
     },
     {
       id: 'argocd',
       name: 'ArgoCD',
       icon: GitBranch,
-      url: '#argocd'
+      url: 'https://argocd.miribit.cloud/auth/login?return_url=https://argocd.miribit.cloud/applications'
     }
   ];
 
