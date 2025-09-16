@@ -84,10 +84,17 @@ func main() {
 	// API 라우트 설정
 	api := r.Group("/api")
 	{
+		// 기존 인증 라우트
 		api.GET("/login", authHandler.HandleLogin)
 		api.GET("/callback", authHandler.HandleCallback)
 		api.GET("/user", authHandler.HandleGetUser)
 		api.POST("/logout", authHandler.HandleLogout)
+
+		// 새로운 인증 라우트 (poc_front용)
+		auth := api.Group("/auth")
+		{
+			auth.POST("/session", authHandler.HandleCreateSessionFromOIDC)
+		}
 
 		console := api.Group("/console")
 		{

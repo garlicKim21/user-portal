@@ -86,6 +86,22 @@ func (s *SessionStore) DeleteSession(sessionID string) {
 	s.mutex.Unlock()
 }
 
+// DeleteUserSessions 특정 사용자의 모든 세션 삭제
+func (s *SessionStore) DeleteUserSessions(userID string) []string {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	var deletedSessionIDs []string
+	for sessionID, session := range s.sessions {
+		if session.UserID == userID {
+			delete(s.sessions, sessionID)
+			deletedSessionIDs = append(deletedSessionIDs, sessionID)
+		}
+	}
+
+	return deletedSessionIDs
+}
+
 // generateSessionID 세션 ID 생성
 func (s *SessionStore) generateSessionID() (string, error) {
 	bytes := make([]byte, 32)

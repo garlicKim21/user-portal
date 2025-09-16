@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { 
   LogOut,
   Menu,
-  X
+  X,
+  AlertCircle
 } from 'lucide-react';
+import { backendAuthService } from '../services/backendAuthService';
 
 interface DashboardProps {
   onLogout: () => void;
@@ -16,6 +18,10 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isTitleClicked, setIsTitleClicked] = useState(false);
+  const [isBackendSessionReady, setIsBackendSessionReady] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const menuItems = [
     {
@@ -44,10 +50,77 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     }
   ];
 
-  const handleMenuClick = (menuId: string, url: string) => {
+  // 백엔드 세션 생성 (컴포넌트 마운트 시)
+  useEffect(() => {
+    const createBackendSession = async () => {
+      if (user?.access_token && !isBackendSessionReady) {
+        try {
+          setIsLoading(true);
+          setError(null);
+          
+          await backendAuthService.createBackendSession(user.access_token);
+          setIsBackendSessionReady(true);
+          console.log('Backend session created successfully');
+        } catch (error) {
+          console.error('Failed to create backend session:', error);
+          setError('백엔드 세션 생성에 실패했습니다.');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    createBackendSession();
+  }, [user?.access_token, isBackendSessionReady]);
+
+  // 메시지 자동 숨김
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError(null);
+        setSuccess(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
+
+  const handleMenuClick = async (menuId: string, url: string) => {
     setActiveMenu(menuId);
-    // 실제 환경에서는 새 탭에서 해당 URL을 열거나 내부 라우팅을 처리
-    console.log(`Navigate to ${url}`);
+    
+    if (menuId === 'terminal') {
+      // Web Console은 특별 처리
+      await handleWebConsoleClick();
+    } else {
+      // 다른 서비스들은 새 탭에서 열기
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleWebConsoleClick = async () => {
+    if (!isBackendSessionReady) {
+      setError('백엔드 세션이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await backendAuthService.launchWebConsole();
+      
+      setSuccess('Web Console이 성공적으로 실행되었습니다!');
+      
+      // 1초 후 새 탭에서 열기
+      setTimeout(() => {
+        window.open(result.url, '_blank');
+      }, 1000);
+      
+    } catch (error) {
+      console.error('Failed to launch web console:', error);
+      setError(`Web Console 실행에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleTitleClick = () => {
@@ -55,6 +128,33 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     setActiveMenu(null);
     // 클릭 효과를 200ms 후에 리셋
     setTimeout(() => setIsTitleClicked(false), 200);
+  };
+
+  const handleLogout = async () => {
+    try {
+      setIsLoading(true);
+      
+      // 백엔드 로그아웃 (K8s 리소스 정리 포함)
+      const logoutUrl = await backendAuthService.logout();
+      
+      // 백엔드 세션 상태 리셋
+      setIsBackendSessionReady(false);
+      backendAuthService.resetSessionState();
+      
+      // 프론트엔드 로그아웃
+      onLogout();
+      
+      // Keycloak 로그아웃 URL이 있으면 리다이렉트
+      if (logoutUrl) {
+        window.location.href = logoutUrl;
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      // 에러가 있어도 프론트엔드 로그아웃은 진행
+      onLogout();
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -136,7 +236,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
           <Button
             variant="ghost"
             className={`w-full justify-start ${sidebarOpen ? 'px-4' : 'px-2'} text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground`}
-            onClick={onLogout}
+            onClick={handleLogout}
           >
             <LogOut className={`h-5 w-5 ${sidebarOpen ? 'mr-3' : ''}`} />
             {sidebarOpen && <span>로그아웃</span>}
@@ -168,6 +268,29 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
 
         {/* Content Area */}
         <main className="flex-1 p-6">
+          {/* 상태 메시지 */}
+          {(isLoading || error || success) && (
+            <div className="mb-4">
+              {isLoading && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-md flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                  처리 중...
+                </div>
+              )}
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-3" />
+                  {error}
+                </div>
+              )}
+              {success && (
+                <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md flex items-center">
+                  <div className="h-4 w-4 rounded-full bg-green-600 mr-3"></div>
+                  {success}
+                </div>
+              )}
+            </div>
+          )}
           {activeMenu ? (
             <Card>
               <CardHeader>
@@ -191,9 +314,23 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
                 </p>
                 <div className="mt-4">
                   <Button
-                    onClick={() => window.open(menuItems.find(item => item.id === activeMenu)?.url, '_blank')}
+                    onClick={() => {
+                      if (activeMenu === 'terminal') {
+                        handleWebConsoleClick();
+                      } else {
+                        window.open(menuItems.find(item => item.id === activeMenu)?.url, '_blank');
+                      }
+                    }}
+                    disabled={activeMenu === 'terminal' && (!isBackendSessionReady || isLoading)}
                   >
-                    {menuItems.find(item => item.id === activeMenu)?.name} 열기
+                    {activeMenu === 'terminal' && isLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                        실행 중...
+                      </>
+                    ) : (
+                      `${menuItems.find(item => item.id === activeMenu)?.name} ${activeMenu === 'terminal' ? '실행' : '열기'}`
+                    )}
                   </Button>
                 </div>
               </CardContent>

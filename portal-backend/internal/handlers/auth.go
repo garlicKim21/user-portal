@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -242,7 +244,7 @@ func (h *AuthHandler) GetSession(c *gin.Context) (*models.Session, error) {
 func (h *AuthHandler) HandleLogout(c *gin.Context) {
 	var idTokenHint string
 	var userID string
-	
+
 	// JWT 토큰에서 세션 정보 조회
 	jwtToken, err := c.Cookie("portal-jwt")
 	if err == nil {
@@ -424,4 +426,151 @@ func (h *AuthHandler) cleanupUserResources(userID string) error {
 	}
 
 	return nil
+}
+
+// HandleCreateSessionFromOIDC OIDC 토큰으로 백엔드 세션 생성 (poc_front용)
+func (h *AuthHandler) HandleCreateSessionFromOIDC(c *gin.Context) {
+	ctx := context.Background()
+
+	// Authorization 헤더에서 OIDC 토큰 추출
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		utils.Response.Unauthorized(c, "Authorization header with Bearer token is required")
+		return
+	}
+
+	oidcAccessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// OIDC 토큰 검증을 위해 userinfo 엔드포인트 호출
+	userInfoResp, err := h.validateOIDCTokenViaUserInfo(ctx, oidcAccessToken)
+	if err != nil {
+		logger.WarnWithContext(c.Request.Context(), "Failed to validate OIDC token", map[string]any{
+			"error": err.Error(),
+		})
+		utils.Response.Unauthorized(c, "Invalid OIDC token")
+		return
+	}
+
+	userID := userInfoResp.PreferredUsername
+	if userID == "" {
+		userID = userInfoResp.Subject
+	}
+
+	// 기존 세션이 있다면 삭제 (중복 세션 방지)
+	h.cleanupExistingUserSessions(userID)
+
+	// 새 세션 생성 (OIDC 토큰 정보 저장)
+	// 만료 시간은 현재 시간 + 1시간으로 설정 (OIDC 토큰 만료 시간을 정확히 알 수 없으므로)
+	expiresAt := time.Now().Add(1 * time.Hour)
+
+	sessionID, err := h.sessionStore.CreateSession(
+		userID,
+		oidcAccessToken, // OIDC Access Token 저장
+		"",              // ID Token은 userinfo에서 받지 않으므로 빈 값
+		"",              // Refresh Token도 마찬가지
+		expiresAt,
+	)
+	if err != nil {
+		logger.ErrorWithContext(c.Request.Context(), "Failed to create session", err, map[string]any{
+			"user_id": userID,
+		})
+		utils.Response.InternalError(c, fmt.Errorf("failed to create session: %w", err))
+		return
+	}
+
+	// JWT 토큰 생성 (세션 ID 포함)
+	jwtToken, err := h.jwtManager.GenerateToken(userID, sessionID, expiresAt)
+	if err != nil {
+		logger.ErrorWithContext(c.Request.Context(), "Failed to generate JWT token", err, map[string]any{
+			"user_id":    userID,
+			"session_id": sessionID,
+		})
+		utils.Response.InternalError(c, fmt.Errorf("failed to generate JWT token: %w", err))
+		return
+	}
+
+	ctx = context.WithValue(c.Request.Context(), logger.UserIDKey, userID)
+	c.Set("user_id", userID)
+
+	logger.InfoWithContext(ctx, "Session created from OIDC token", map[string]any{
+		"user_id":    userID,
+		"session_id": sessionID,
+	})
+
+	// JWT 토큰을 쿠키에 설정
+	cookie := &http.Cookie{
+		Name:     "portal-jwt",
+		Value:    jwtToken,
+		Path:     "/",
+		Domain:   "",
+		MaxAge:   3600, // 1시간
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteNoneMode,
+	}
+
+	http.SetCookie(c.Writer, cookie)
+
+	utils.Response.SuccessWithMessage(c, "Session created successfully", gin.H{
+		"user_id": userID,
+	})
+}
+
+// validateOIDCTokenViaUserInfo OIDC 토큰을 userinfo 엔드포인트로 검증
+func (h *AuthHandler) validateOIDCTokenViaUserInfo(ctx context.Context, accessToken string) (*OIDCUserInfo, error) {
+	// Keycloak userinfo 엔드포인트 URL 구성
+	issuerURL := os.Getenv("OIDC_ISSUER_URL")
+	if issuerURL == "" {
+		return nil, fmt.Errorf("OIDC_ISSUER_URL environment variable is required")
+	}
+
+	userInfoURL := issuerURL + "/protocol/openid-connect/userinfo"
+
+	req, err := http.NewRequestWithContext(ctx, "GET", userInfoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create userinfo request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call userinfo endpoint: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("userinfo endpoint returned status %d", resp.StatusCode)
+	}
+
+	var userInfo OIDCUserInfo
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		return nil, fmt.Errorf("failed to decode userinfo response: %v", err)
+	}
+
+	return &userInfo, nil
+}
+
+// cleanupExistingUserSessions 기존 사용자 세션 정리
+func (h *AuthHandler) cleanupExistingUserSessions(userID string) {
+	deletedSessionIDs := h.sessionStore.DeleteUserSessions(userID)
+
+	for _, sessionID := range deletedSessionIDs {
+		logger.InfoWithContext(context.TODO(), "Cleaned up existing session", map[string]any{
+			"user_id":    userID,
+			"session_id": sessionID,
+		})
+	}
+}
+
+// OIDCUserInfo OIDC userinfo 응답 구조체
+type OIDCUserInfo struct {
+	Subject           string `json:"sub"`
+	Email             string `json:"email"`
+	Name              string `json:"name"`
+	PreferredUsername string `json:"preferred_username"`
+	GivenName         string `json:"given_name"`
+	FamilyName        string `json:"family_name"`
+	EmailVerified     bool   `json:"email_verified"`
 }
