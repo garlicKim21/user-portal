@@ -58,5 +58,13 @@
       host: '0.0.0.0',
       allowedHosts: ['front.miribit.cloud'],
       open: true,
+      proxy: {
+        '/api': {
+          target: 'https://portal.miribit.cloud',
+          changeOrigin: true,
+          secure: true,
+          rewrite: (path) => path,
+        },
+      },
     },
   });
