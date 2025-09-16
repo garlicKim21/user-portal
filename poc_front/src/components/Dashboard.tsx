@@ -31,7 +31,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       id: 'terminal',
       name: 'Secure Web Terminal',
       icon: Terminal,
-      url: '#terminal'
+      url: 'https://portal.basphere.dev/api/launch-console'
     },
     {
       id: 'jenkins',

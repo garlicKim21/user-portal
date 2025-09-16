@@ -94,7 +94,7 @@ func Load() (*Config, error) {
 			ContainerPort: getEnvAsIntWithDefault("CONSOLE_CONTAINER_PORT", 8080),
 			ServicePort:   getEnvAsIntWithDefault("CONSOLE_SERVICE_PORT", 80),
 			TTLSeconds:    getEnvAsIntWithDefault("CONSOLE_TTL_SECONDS", 3600),
-			BaseURL:       getEnvWithDefault("WEB_CONSOLE_BASE_URL", "https://console.basphere.dev"),
+			BaseURL:       getEnvWithDefault("WEB_CONSOLE_BASE_URL", "console.basphere.dev"),
 		},
 		Logging: LoggingConfig{
 			Level: strings.ToUpper(getEnvWithDefault("LOG_LEVEL", "INFO")),
