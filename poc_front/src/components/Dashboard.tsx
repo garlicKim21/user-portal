@@ -53,20 +53,32 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
   // 백엔드 세션 생성 (컴포넌트 마운트 시)
   useEffect(() => {
     const createBackendSession = async () => {
+      console.log('Dashboard useEffect triggered:', {
+        hasAccessToken: !!user?.access_token,
+        isBackendSessionReady,
+        userObject: user
+      });
+
       if (user?.access_token && !isBackendSessionReady) {
         try {
           setIsLoading(true);
           setError(null);
           
+          console.log('Attempting to create backend session with token:', user.access_token.substring(0, 20) + '...');
           await backendAuthService.createBackendSession(user.access_token);
           setIsBackendSessionReady(true);
           console.log('Backend session created successfully');
         } catch (error) {
           console.error('Failed to create backend session:', error);
-          setError('백엔드 세션 생성에 실패했습니다.');
+          setError(`백엔드 세션 생성에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
         } finally {
           setIsLoading(false);
         }
+      } else {
+        console.log('Skipping backend session creation:', {
+          noAccessToken: !user?.access_token,
+          sessionAlreadyReady: isBackendSessionReady
+        });
       }
     };
 
@@ -84,16 +96,9 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     }
   }, [error, success]);
 
-  const handleMenuClick = async (menuId: string, url: string) => {
+  const handleMenuClick = (menuId: string, url: string) => {
     setActiveMenu(menuId);
-    
-    if (menuId === 'terminal') {
-      // Web Console은 특별 처리
-      await handleWebConsoleClick();
-    } else {
-      // 다른 서비스들은 새 탭에서 열기
-      window.open(url, '_blank');
-    }
+    // 메뉴 클릭 시에는 오른쪽 패널만 변경하고, 실제 실행은 버튼 클릭 시에만
   };
 
   const handleWebConsoleClick = async () => {

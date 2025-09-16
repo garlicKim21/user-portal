@@ -21,6 +21,12 @@ export class BackendAuthService {
     }
 
     try {
+      console.log('Making request to /api/auth/session...');
+      console.log('Request headers:', {
+        'Authorization': `Bearer ${oidcAccessToken.substring(0, 20)}...`,
+        'Content-Type': 'application/json',
+      });
+
       const response = await fetch('/api/auth/session', {
         method: 'POST',
         headers: {
@@ -30,8 +36,12 @@ export class BackendAuthService {
         credentials: 'include' // 쿠키 설정을 위해 필요
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
+        console.error('Backend session creation failed:', errorData);
         throw new Error(`Failed to create backend session: ${errorData.error?.message || response.statusText}`);
       }
 
