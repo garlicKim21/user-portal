@@ -22,11 +22,13 @@ type Client struct {
 
 // NewClient 새로운 쿠버네티스 클라이언트 생성
 func NewClient() (*Client, error) {
+	cfg := config.Get()
+	
 	// 클러스터 내부에서 실행되는 경우
 	config, err := rest.InClusterConfig()
 	if err != nil {
 		// 클러스터 외부에서 실행되는 경우 (개발 환경)
-		kubeconfig := os.Getenv("KUBECONFIG")
+		kubeconfig := cfg.Kubernetes.Kubeconfig
 		if kubeconfig == "" {
 			kubeconfig = os.Getenv("HOME") + "/.kube/config"
 		}

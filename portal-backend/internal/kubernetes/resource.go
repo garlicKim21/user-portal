@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"time"
+	"strings"
 
 	"github.com/google/uuid"
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"portal-backend/internal/auth"
+	"portal-backend/internal/config"
 )
 
 // ConsoleResource 웹 콘솔 리소스 정보
@@ -44,54 +46,29 @@ type ConsoleConfig struct {
 
 // GetDefaultConfig 기본 설정 반환
 func GetDefaultConfig() *ConsoleConfig {
-	namespace := os.Getenv("CONSOLE_NAMESPACE")
-	if namespace == "" {
-		namespace = "default"
-	}
-
-	image := os.Getenv("CONSOLE_IMAGE")
-	if image == "" {
-		// 커스텀 웹 터미널 이미지 사용 (kubectl + ttyd + 간소화된 버전)
-		image = "projectgreenist/web-terminal:0.2.11"
-	}
-
-	containerPort := int32(8080)
-	if port := os.Getenv("CONSOLE_CONTAINER_PORT"); port != "" {
-		if p := parseInt32(port); p > 0 {
-			containerPort = p
-		}
-	}
-
-	servicePort := int32(80)
-	if port := os.Getenv("CONSOLE_SERVICE_PORT"); port != "" {
-		if p := parseInt32(port); p > 0 {
-			servicePort = p
-		}
-	}
-
-	ttlSeconds := int32(3600) // 기본 1시간
-	if ttl := os.Getenv("CONSOLE_TTL_SECONDS"); ttl != "" {
-		if t := parseInt32(ttl); t > 0 {
-			ttlSeconds = t
-		}
-	}
-
+	cfg := config.Get()
+	
 	return &ConsoleConfig{
-		Namespace:     namespace,
-		Image:         image,
-		ContainerPort: containerPort,
-		ServicePort:   servicePort,
-		TTLSeconds:    ttlSeconds,
+		Namespace:     cfg.Console.Namespace,
+		Image:         cfg.Console.Image,
+		ContainerPort: int32(cfg.Console.ContainerPort),
+		ServicePort:   int32(cfg.Console.ServicePort),
+		TTLSeconds:    int32(cfg.Console.TTLSeconds),
 	}
 }
 
 // CreateConsoleResources 웹 콘솔 리소스 생성 (defaultNamespace 인자 추가)
-func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNamespace string) (*ConsoleResource, error) {
+func (c *Client) CreateConsoleResources(userID, accessToken, refreshToken, defaultNamespace string) (*ConsoleResource, error) {
+	log.Printf("=== Starting console resource creation for user: %s ===", userID)
+	
 	config := GetDefaultConfig()
+	log.Printf("Step 1: Loaded default config - Namespace: %s, Image: %s", config.Namespace, config.Image)
+	
 	// 전체 UUID + timestamp로 고유성 보장
 	fullUUID := uuid.New().String()
 	timestamp := fmt.Sprintf("%d", time.Now().Unix())
 	resourceID := fmt.Sprintf("%s-%s", fullUUID, timestamp)
+	log.Printf("Step 2: Generated resource ID: %s", resourceID)
 
 	consoleResource := &ConsoleResource{
 		ID:             resourceID,
@@ -104,10 +81,13 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 		Namespace:      config.Namespace,
 		CreatedAt:      time.Now(),
 	}
+	log.Printf("Step 3: Created console resource object - Deployment: %s, Service: %s, Secret: %s", 
+		consoleResource.DeploymentName, consoleResource.ServiceName, consoleResource.SecretName)
 
 	ctx := context.Background()
 
 	// 1. PVC 생성 (명령어 히스토리 영구 보존) - 사용자별로 한 개만 생성
+	log.Printf("Step 4: Creating PVC for command history - Name: %s", consoleResource.PVCName)
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      consoleResource.PVCName,
@@ -134,17 +114,25 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 	// PVC가 존재하지 않으면 생성 (사용자별 히스토리는 공유)
 	_, err := c.Clientset.CoreV1().PersistentVolumeClaims(consoleResource.Namespace).Get(ctx, consoleResource.PVCName, metav1.GetOptions{})
 	if err != nil {
+		log.Printf("Step 4.1: PVC does not exist, creating new PVC: %s", consoleResource.PVCName)
 		_, err = c.Clientset.CoreV1().PersistentVolumeClaims(consoleResource.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
 		if err != nil {
+			log.Printf("Step 4.1 ERROR: Failed to create PVC: %v", err)
 			return nil, fmt.Errorf("failed to create PVC: %v", err)
 		}
+		log.Printf("Step 4.1 SUCCESS: PVC created successfully: %s", consoleResource.PVCName)
+	} else {
+		log.Printf("Step 4.1: PVC already exists, skipping creation: %s", consoleResource.PVCName)
 	}
 
 	// 2. Secret 생성 (kubeconfig 보안 저장)
+	log.Printf("Step 5: Generating kubeconfig for default namespace: %s", defaultNamespace)
 	kubeconfig, errGen := GenerateUserKubeconfig(defaultNamespace)
 	if errGen != nil {
+		log.Printf("Step 5 ERROR: Failed to generate kubeconfig: %v", errGen)
 		return nil, fmt.Errorf("failed to generate user-specific kubeconfig: %v", errGen)
 	}
+	log.Printf("Step 5 SUCCESS: Kubeconfig generated successfully")
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      consoleResource.SecretName,
@@ -161,12 +149,16 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 		},
 	}
 
+	log.Printf("Step 6: Creating Secret for kubeconfig - Name: %s", consoleResource.SecretName)
 	_, err = c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Create(ctx, secret, metav1.CreateOptions{})
 	if err != nil {
+		log.Printf("Step 6 ERROR: Failed to create Secret: %v", err)
 		return nil, fmt.Errorf("failed to create Secret: %v", err)
 	}
+	log.Printf("Step 6 SUCCESS: Secret created successfully: %s", consoleResource.SecretName)
 
 	// 3. Deployment 생성
+	log.Printf("Step 7: Creating Deployment - Name: %s", consoleResource.DeploymentName)
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      consoleResource.DeploymentName,
@@ -233,12 +225,12 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 							},
 							Env: []corev1.EnvVar{
 								{Name: "KUBECONFIG", Value: "/home/user/.kube/config"},
-								{Name: "K8S_TOKEN", Value: idToken},
-								{Name: "K8S_SERVER", Value: os.Getenv("TARGET_CLUSTER_SERVER")},
-								{Name: "K8S_CA_DATA", Value: os.Getenv("TARGET_CLUSTER_CA_CERT_DATA")},
+								{Name: "K8S_TOKEN", Value: accessToken},
+								{Name: "K8S_SERVER", Value: config.Get().Kubernetes.TargetServer},
+								{Name: "K8S_CA_DATA", Value: config.Get().Kubernetes.TargetCAData},
 								{Name: "USER_ID", Value: userID},
 								{Name: "DEFAULT_NAMESPACE", Value: defaultNamespace},
-								{Name: "USER_ROLES", Value: getUserRoles(userID, idToken)},
+								{Name: "USER_ROLES", Value: getUserRoles(accessToken)},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
@@ -297,12 +289,16 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 
 	_, err = c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
 	if err != nil {
+		log.Printf("Step 7 ERROR: Failed to create Deployment: %v", err)
 		// Secret 정리
+		log.Printf("Step 7 CLEANUP: Deleting Secret due to Deployment creation failure: %s", consoleResource.SecretName)
 		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
 		return nil, fmt.Errorf("failed to create Deployment: %v", err)
 	}
+	log.Printf("Step 7 SUCCESS: Deployment created successfully: %s", consoleResource.DeploymentName)
 
 	// 4. Service 생성
+	log.Printf("Step 8: Creating Service - Name: %s", consoleResource.ServiceName)
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      consoleResource.ServiceName,
@@ -331,15 +327,19 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 
 	_, err = c.Clientset.CoreV1().Services(consoleResource.Namespace).Create(ctx, service, metav1.CreateOptions{})
 	if err != nil {
+		log.Printf("Step 8 ERROR: Failed to create Service: %v", err)
 		// Deployment와 Secret 정리
+		log.Printf("Step 8 CLEANUP: Deleting Deployment and Secret due to Service creation failure")
 		c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Delete(ctx, consoleResource.DeploymentName, metav1.DeleteOptions{})
 		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
 		return nil, fmt.Errorf("failed to create Service: %v", err)
 	}
+	log.Printf("Step 8 SUCCESS: Service created successfully: %s", consoleResource.ServiceName)
 
 	// 5. Ingress 생성 (사용자별 고유 경로)
 	pathType := networkingv1.PathTypePrefix
 	userPath := fmt.Sprintf("/%s/%s", userID, fullUUID) // 사용자ID/UUID 형태
+	log.Printf("Step 9: Creating Ingress - Name: %s, Path: %s", consoleResource.IngressName, userPath)
 
 	ingress := &networkingv1.Ingress{
 		ObjectMeta: metav1.ObjectMeta{
@@ -353,15 +353,12 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 		},
 		Spec: networkingv1.IngressSpec{
 			IngressClassName: func() *string {
-				ingressClass := os.Getenv("INGRESS_CLASS")
-				if ingressClass == "" {
-					ingressClass = "cilium" // 기본값
-				}
+				ingressClass := config.Get().Console.IngressClass
 				return &ingressClass
 			}(),
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: "console.basphere.dev",
+					Host: portalConfig.Get().Console.BaseURL,  // 환경변수에서 가져오기
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
@@ -387,25 +384,31 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 
 	_, err = c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
 	if err != nil {
+		log.Printf("Step 9 ERROR: Failed to create Ingress: %v", err)
 		// Deployment와 Secret, Ingress 정리
+		log.Printf("Step 9 CLEANUP: Deleting Deployment, Secret, and Service due to Ingress creation failure")
 		c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Delete(ctx, consoleResource.DeploymentName, metav1.DeleteOptions{})
 		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
-		c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Delete(ctx, consoleResource.IngressName, metav1.DeleteOptions{})
+		c.Clientset.CoreV1().Services(consoleResource.Namespace).Delete(ctx, consoleResource.ServiceName, metav1.DeleteOptions{})
 		return nil, fmt.Errorf("failed to create Ingress: %v", err)
 	}
+	log.Printf("Step 9 SUCCESS: Ingress created successfully: %s", consoleResource.IngressName)
 
 	// Deployment가 준비될 때까지 대기
+	log.Printf("Step 10: Waiting for Deployment to be ready - Name: %s", consoleResource.DeploymentName)
 	err = c.WaitForDeploymentReady(consoleResource.DeploymentName, consoleResource.Namespace, 60*time.Second)
 	if err != nil {
-		log.Printf("Deployment %s not ready after timeout, but continuing: %v", consoleResource.DeploymentName, err)
+		log.Printf("Step 10 WARNING: Deployment %s not ready after timeout, but continuing: %v", consoleResource.DeploymentName, err)
+	} else {
+		log.Printf("Step 10 SUCCESS: Deployment is ready: %s", consoleResource.DeploymentName)
 	}
 
 	// 콘솔 URL 생성 (사용자별 고유 경로)
-	baseURL := os.Getenv("WEB_CONSOLE_BASE_URL")
-	if baseURL == "" {
-		baseURL = "https://console.basphere.dev"
-	}
+	baseURL := portalConfig.Get().Console.BaseURL  // 환경변수에서 가져오기
 	consoleResource.ConsoleURL = fmt.Sprintf("%s/%s/%s", baseURL, userID, fullUUID)
+	
+	log.Printf("Step 11: Console URL generated: %s", consoleResource.ConsoleURL)
+	log.Printf("=== Console resource creation completed successfully for user: %s ===", userID)
 
 	return consoleResource, nil
 }
@@ -436,7 +439,7 @@ func (c *Client) WaitForPodReady(podName, namespace string, timeout time.Duratio
 	defer cancel()
 
 	return wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
-		pod, err := c.TargetClientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		pod, err := c.Clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -578,8 +581,8 @@ func parseInt32(s string) int32 {
 }
 
 // getUserRoles 사용자의 역할 정보를 문자열로 반환
-func getUserRoles(userID, idToken string) string {
-	userGroups, err := auth.ExtractUserGroups(idToken)
+func getUserRoles(accessToken string) string {
+	userGroups, err := auth.ExtractUserGroups(accessToken)
 	if err != nil {
 		return "unknown"
 	}
@@ -596,13 +599,20 @@ func getUserRoles(userID, idToken string) string {
 		roles = append(roles, "cluster-admin")
 	}
 
-	// 네임스페이스별 역할 추가
+	// 네임스페이스별 역할 추가 ("/cluster/namespace/role" 형태)
 	namespaceRoles := make(map[string]string)
 	for _, group := range userGroups.Groups {
-		parts := splitN(group, "-", 2)
-		if len(parts) == 2 {
-			namespace := parts[0]
-			role := parts[1]
+		// "/cluster/namespace/role" 형태 파싱
+		parts := strings.Split(strings.TrimPrefix(group, "/"), "/")
+		if len(parts) == 3 {
+			cluster := parts[0]
+			namespace := parts[1]
+			role := parts[2]
+
+			// cluster가 비어있거나 namespace가 비어있으면 건너뛰기
+			if cluster == "" || namespace == "" || role == "" {
+				continue
+			}
 
 			// 이미 더 높은 권한이 있으면 건너뛰기
 			if existingRole, exists := namespaceRoles[namespace]; exists {

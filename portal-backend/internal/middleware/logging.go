@@ -25,11 +25,6 @@ func RequestLoggingMiddleware() gin.HandlerFunc {
 
 		duration := time.Since(startTime)
 
-		userID, exists := c.Get("user_id")
-		if exists {
-			ctx = context.WithValue(ctx, logger.UserIDKey, userID)
-		}
-
 		logger.LogHTTPRequest(
 			ctx,
 			c.Request.Method,
@@ -60,17 +55,6 @@ func RequestLoggingMiddleware() gin.HandlerFunc {
 	}
 }
 
-// SetUserIDMiddleware 사용자 ID를 컨텍스트에 설정하는 미들웨어
-func SetUserIDMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		if userID, exists := c.Get("user_id"); exists {
-			ctx := context.WithValue(c.Request.Context(), logger.UserIDKey, userID)
-			c.Request = c.Request.WithContext(ctx)
-		}
-
-		c.Next()
-	}
-}
 
 // ErrorLoggingMiddleware 에러 로깅 미들웨어
 func ErrorLoggingMiddleware() gin.HandlerFunc {

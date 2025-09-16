@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"portal-backend/internal/config"
 )
 
 // ContextKey 컨텍스트 키의 타입 안전성을 위한 커스텀 타입
@@ -63,13 +64,10 @@ var defaultLogger *Logger
 
 // Init 로거 초기화
 func Init() {
-	level := strings.ToUpper(os.Getenv("LOG_LEVEL"))
-	if level == "" {
-		level = "INFO"
-	}
-
+	cfg := config.Get()
+	
 	defaultLogger = &Logger{
-		minLevel: LogLevel(level),
+		minLevel: LogLevel(cfg.Logging.Level),
 		output:   log.New(os.Stdout, "", 0),
 	}
 }

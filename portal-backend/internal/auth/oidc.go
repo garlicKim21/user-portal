@@ -102,6 +102,7 @@ type TokenClaims struct {
 // TokenExchangeResponse Token Exchange 응답 구조체
 type TokenExchangeResponse struct {
 	AccessToken      string `json:"access_token"`
+	IDToken          string `json:"id_token,omitempty"`
 	ExpiresIn        int    `json:"expires_in"`
 	RefreshToken     string `json:"refresh_token,omitempty"`
 	RefreshExpiresIn int    `json:"refresh_expires_in,omitempty"`
@@ -122,13 +123,21 @@ func ExchangeTokenForKubernetes(subjectToken string) (*TokenExchangeResponse, er
 		return nil, fmt.Errorf("KUBERNETES_CLIENT_ID environment variable is required for token exchange")
 	}
 
+	// 디버깅을 위한 로그
+	fmt.Printf("Token Exchange Debug:\n")
+	fmt.Printf("  Client ID: %s\n", clientID)
+	fmt.Printf("  Client Secret: %s\n", clientSecret)
+	fmt.Printf("  Target Audience: %s\n", targetAudience)
+	fmt.Printf("  Token Endpoint: %s\n", tokenEndpoint)
+	fmt.Printf("  Subject Token : %s\n", subjectToken)
+
 	data := url.Values{}
 	data.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
 	data.Set("subject_token", subjectToken)
 	data.Set("subject_token_type", "urn:ietf:params:oauth:token-type:access_token")
 	data.Set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token")
 	data.Set("audience", targetAudience)
-
+	
 	req, err := http.NewRequest("POST", tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token exchange request: %v", err)

@@ -77,29 +77,28 @@ func ExtractUserGroups(idToken string) (*UserGroups, error) {
 }
 
 // GetUserRole 사용자의 최고 권한 역할 반환
-// 우선순위: admin > developer > viewer > user
+// 우선순위: adm > dev > view > user
 func (ug *UserGroups) GetUserRole() string {
 	for _, group := range ug.Groups {
 		switch strings.ToLower(group) {
-		case "admins", "admin":
-			return "admin"
+		case "admins", "admin", "adm":
+			return "adm"
 		}
 	}
 
 	for _, group := range ug.Groups {
 		switch strings.ToLower(group) {
-		case "developers", "developer":
-			return "developer"
+		case "developers", "developer", "dev":
+			return "dev"
 		}
 	}
 
 	for _, group := range ug.Groups {
 		switch strings.ToLower(group) {
-		case "viewers", "viewer":
-			return "viewer"
+		case "viewers", "viewer", "view":
+			return "view"
 		}
 	}
-
 	return "user" // 기본 역할
 }
 
@@ -108,12 +107,12 @@ func (ug *UserGroups) HasRole(role string) bool {
 	userRole := ug.GetUserRole()
 
 	switch strings.ToLower(role) {
-	case "admin":
-		return userRole == "admin"
-	case "developer":
-		return userRole == "admin" || userRole == "developer"
+	case "adm":
+		return userRole == "adm"
+	case "dev":
+		return userRole == "adm" || userRole == "dev"
 	case "viewer":
-		return userRole == "admin" || userRole == "developer" || userRole == "viewer"
+		return userRole == "adm" || userRole == "dev" || userRole == "view"
 	default:
 		return true // 기본 사용자 권한
 	}
@@ -130,30 +129,38 @@ func (ug *UserGroups) ToJSON() string {
 
 // RolePriority 역할 우선순위를 정의 (낮을수록 높음)
 var RolePriority = map[string]int{
-	"admins":     1,
-	"developers": 2,
-	"viewers":    3,
+	"adm" : 1,
+	"dev" : 2,
+	"view": 3,
 }
 
 // DetermineDefaultNamespace 사용자의 그룹 목록을 기반으로 기본 네임스페이스를 결정합니다.
+// 그룹 형태: "/cluster/namespace/role"
 func (ug *UserGroups) DetermineDefaultNamespace() string {
 	// cluster-admins 그룹이 있으면 무조건 default 네임스페이스를 반환합니다.
-	if slices.Contains(ug.Groups, "cluster-admins") {
+	if slices.Contains(ug.Groups, "platform-adm") {
 		return "default"
 	}
 
 	highestPriority := 99
 	candidateNamespaces := make([]string, 0)
 
-	// 다른 그룹들을 순회하며 가장 높은 우선순위의 네임스페이스 후보들을 수집합니다.
+	// 그룹들을 순회하며 "/cluster/namespace/role" 형태에서 namespace와 role을 추출합니다.
 	for _, group := range ug.Groups {
-		parts := strings.SplitN(group, "-", 2)
-		if len(parts) != 2 {
+		// "/cluster/namespace/role" 형태 파싱
+		parts := strings.Split(strings.TrimPrefix(group, "/"), "/")
+		if len(parts) != 3 {
 			continue
 		}
 
-		namespace := parts[0]
-		role := parts[1]
+		cluster := parts[0]
+		namespace := parts[1]
+		role := parts[2]
+
+		// cluster가 비어있거나 namespace가 비어있으면 건너뛰기
+		if cluster == "" || namespace == "" || role == "" {
+			continue
+		}
 
 		priority, ok := RolePriority[role]
 		if !ok {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"portal-backend/internal/auth"
 	"portal-backend/internal/config"
 	"portal-backend/internal/handlers"
 	"portal-backend/internal/kubernetes"
@@ -25,21 +24,12 @@ func main() {
 	logger.Init()
 	logger.Info("Starting Portal Backend application")
 
-	oidcProvider, err := auth.NewOIDCProvider()
-	if err != nil {
-		logger.Fatal("Failed to create OIDC provider", err)
-	}
-
 	k8sClient, err := kubernetes.NewClient()
 	if err != nil {
 		logger.Fatal("Failed to create Kubernetes client", err)
 	}
 
-	authHandler, err := handlers.NewAuthHandler(oidcProvider, k8sClient)
-	if err != nil {
-		logger.Fatal("Failed to create auth handler", err)
-	}
-	consoleHandler := handlers.NewConsoleHandler(k8sClient, authHandler)
+	consoleHandler := handlers.NewConsoleHandler(k8sClient)
 
 	gin.SetMode(cfg.Server.GinMode)
 
@@ -52,7 +42,6 @@ func main() {
 
 	r.Use(middleware.RecoveryLoggingMiddleware())
 	r.Use(middleware.RequestLoggingMiddleware())
-	r.Use(middleware.SetUserIDMiddleware())
 	r.Use(middleware.ErrorLoggingMiddleware())
 
 	// CORS 설정
@@ -84,19 +73,14 @@ func main() {
 	// API 라우트 설정
 	api := r.Group("/api")
 	{
-		api.GET("/login", authHandler.HandleLogin)
-		api.GET("/callback", authHandler.HandleCallback)
-		api.GET("/user", authHandler.HandleGetUser)
-		api.POST("/logout", authHandler.HandleLogout)
-
 		console := api.Group("/console")
 		{
-			console.GET("/launch", consoleHandler.HandleLaunchConsole)
-			console.GET("/list", consoleHandler.HandleListConsoles)
-			console.DELETE("/:resourceId", consoleHandler.HandleDeleteConsole)
+			console.POST("/launch", consoleHandler.HandleLaunchConsole)
+			console.POST("/list", consoleHandler.HandleListConsoles)
+			console.POST("/delete/:resourceId", consoleHandler.HandleDeleteConsole)
 		}
 
-		api.GET("/launch-console", consoleHandler.HandleLaunchConsole)
+		api.POST("/launch-console", consoleHandler.HandleLaunchConsole)
 	}
 
 	// 헬스체크 엔드포인트
