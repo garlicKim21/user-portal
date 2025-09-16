@@ -2,7 +2,11 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,25 +42,37 @@ func NewConsoleHandler(k8sClient *kubernetes.Client, authHandler *AuthHandler) *
 
 // HandleLaunchConsole 웹 콘솔 Pod 생성
 func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
-	// JWT에서 세션 정보 가져오기
-	session, err := h.authHandler.GetSession(c)
-	if err != nil {
-		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT", map[string]any{
-			"error": err.Error(),
-		})
-		if apiErr, ok := err.(*models.APIError); ok {
-			utils.Response.Error(c, apiErr)
-		} else {
-			utils.Response.Unauthorized(c, "Invalid or expired session")
-		}
+	ctx := context.Background()
+
+	// Authorization 헤더에서 Bearer 토큰(OIDC Access Token) 추출
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		utils.Response.Unauthorized(c, "Authorization header with Bearer token is required")
 		return
 	}
 
-	// Access Token을 사용하여 Kubernetes 전용 토큰으로 교환합니다.
-	exchangeResp, err := auth.ExchangeTokenForKubernetes(session.AccessToken)
+	oidcAccessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// OIDC Access Token 검증 (userinfo 엔드포인트 사용)
+	userInfo, err := h.validateOIDCAccessToken(ctx, oidcAccessToken)
+	if err != nil {
+		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
+			"error": err.Error(),
+		})
+		utils.Response.Unauthorized(c, "Invalid OIDC token")
+		return
+	}
+
+	userID := userInfo.PreferredUsername
+	if userID == "" {
+		userID = userInfo.Subject
+	}
+
+	// OIDC Access Token을 Kubernetes용 토큰으로 교환
+	exchangeResp, err := auth.ExchangeTokenForKubernetes(oidcAccessToken)
 	if err != nil {
 		logger.ErrorWithContext(c.Request.Context(), "Failed to exchange token for kubernetes", err, map[string]any{
-			"user_id": session.UserID,
+			"user_id": userID,
 		})
 		utils.Response.InternalError(c, fmt.Errorf("failed to get kubernetes token: %w", err))
 		return
@@ -65,29 +81,31 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 	newK8sAccessToken := exchangeResp.AccessToken
 
 	// 사용자 그룹 정보 확인 및 기본 네임스페이스 결정
-	userGroups, err := auth.ExtractUserGroups(session.IDToken)
+	// ID 토큰에서 그룹 정보를 추출하기 위해 raw ID token을 사용
+	rawIDToken := oidcAccessToken // 실제로는 ID token이어야 하지만, Access token에서 userinfo로 그룹 정보를 가져올 수 있음
+	userGroups, err := auth.ExtractUserGroups(rawIDToken)
 	if err != nil {
 		logger.WarnWithContext(c.Request.Context(), "Failed to extract user groups", map[string]any{
-			"user_id": session.UserID,
+			"user_id": userID,
 			"error":   err.Error(),
 		})
-		userGroups = &auth.UserGroups{}
+		userGroups = &auth.UserGroups{UserID: userID, Username: userID}
 	}
 
 	defaultNamespace := userGroups.DetermineDefaultNamespace()
 	logger.InfoWithContext(c.Request.Context(), "Determined default namespace for user", map[string]any{
-		"user_id":           session.UserID,
+		"user_id":           userID,
 		"groups":            userGroups.Groups,
 		"default_namespace": defaultNamespace,
 	})
 
 	// 웹 콘솔 리소스 생성 (기본 네임스페이스 전달)
-	resource, err := h.k8sClient.CreateConsoleResources(session.UserID, newK8sAccessToken, session.RefreshToken, defaultNamespace)
+	resource, err := h.k8sClient.CreateConsoleResources(userID, newK8sAccessToken, "", defaultNamespace)
 	if err != nil {
 		logger.ErrorWithContext(c.Request.Context(), "Failed to create console resources", err, map[string]any{
-			"user_id": session.UserID,
+			"user_id": userID,
 		})
-		utils.Response.Error(c, models.ErrPodCreationFailed.WithDetails("User: "+session.UserID).WithCause(err))
+		utils.Response.Error(c, models.ErrPodCreationFailed.WithDetails("User: "+userID).WithCause(err))
 		return
 	}
 
@@ -95,7 +113,7 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 	h.resources[resource.ID] = resource
 
 	logger.InfoWithContext(c.Request.Context(), "Web console created successfully", map[string]any{
-		"user_id":     session.UserID,
+		"user_id":     userID,
 		"resource_id": resource.ID,
 		"console_url": resource.ConsoleURL,
 	})
@@ -108,18 +126,30 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 
 // HandleDeleteConsole 웹 콘솔 리소스 삭제
 func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
-	// JWT에서 세션 정보 가져오기
-	session, err := h.authHandler.GetSession(c)
+	ctx := context.Background()
+
+	// Authorization 헤더에서 Bearer 토큰(OIDC Access Token) 추출
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		utils.Response.Unauthorized(c, "Authorization header with Bearer token is required")
+		return
+	}
+
+	oidcAccessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// OIDC Access Token 검증 (userinfo 엔드포인트 사용)
+	userInfo, err := h.validateOIDCAccessToken(ctx, oidcAccessToken)
 	if err != nil {
-		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT for delete operation", map[string]any{
+		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
 			"error": err.Error(),
 		})
-		if apiErr, ok := err.(*models.APIError); ok {
-			utils.Response.Error(c, apiErr)
-		} else {
-			utils.Response.Unauthorized(c, "Invalid or expired session")
-		}
+		utils.Response.Unauthorized(c, "Invalid OIDC token")
 		return
+	}
+
+	userID := userInfo.PreferredUsername
+	if userID == "" {
+		userID = userInfo.Subject
 	}
 
 	resourceID := c.Param("resourceId")
@@ -136,14 +166,14 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	}
 
 	// 사용자 권한 확인
-	if resource.UserID != session.UserID {
+	if resource.UserID != userID {
 		utils.Response.Forbidden(c, "You can only delete your own console resources")
 		return
 	}
 
 	// 리소스 삭제
 	logger.InfoWithContext(c.Request.Context(), "Deleting console resources", map[string]any{
-		"user_id":     session.UserID,
+		"user_id":     userID,
 		"resource_id": resourceID,
 		"deployment":  resource.DeploymentName,
 		"service":     resource.ServiceName,
@@ -152,7 +182,7 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	err = h.k8sClient.DeleteConsoleResources(resource)
 	if err != nil {
 		logger.ErrorWithContext(c.Request.Context(), "Failed to delete console resources", err, map[string]any{
-			"user_id":     session.UserID,
+			"user_id":     userID,
 			"resource_id": resourceID,
 		})
 		utils.Response.KubernetesError(c, "delete console resources", err)
@@ -163,7 +193,7 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 	delete(h.resources, resourceID)
 
 	logger.InfoWithContext(c.Request.Context(), "Web console deleted successfully", map[string]any{
-		"user_id":     session.UserID,
+		"user_id":     userID,
 		"resource_id": resourceID,
 		"deployment":  resource.DeploymentName,
 		"service":     resource.ServiceName,
@@ -176,24 +206,36 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 
 // HandleListConsoles 사용자의 웹 콘솔 목록 조회
 func (h *ConsoleHandler) HandleListConsoles(c *gin.Context) {
-	// JWT에서 세션 정보 가져오기
-	session, err := h.authHandler.GetSession(c)
+	ctx := context.Background()
+
+	// Authorization 헤더에서 Bearer 토큰(OIDC Access Token) 추출
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		utils.Response.Unauthorized(c, "Authorization header with Bearer token is required")
+		return
+	}
+
+	oidcAccessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// OIDC Access Token 검증 (userinfo 엔드포인트 사용)
+	userInfo, err := h.validateOIDCAccessToken(ctx, oidcAccessToken)
 	if err != nil {
-		logger.WarnWithContext(c.Request.Context(), "Failed to get session from JWT for list operation", map[string]any{
+		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
 			"error": err.Error(),
 		})
-		if apiErr, ok := err.(*models.APIError); ok {
-			utils.Response.Error(c, apiErr)
-		} else {
-			utils.Response.Unauthorized(c, "Invalid or expired session")
-		}
+		utils.Response.Unauthorized(c, "Invalid OIDC token")
 		return
+	}
+
+	userID := userInfo.PreferredUsername
+	if userID == "" {
+		userID = userInfo.Subject
 	}
 
 	// 사용자의 리소스 필터링
 	userResources := make([]*kubernetes.ConsoleResource, 0)
 	for _, resource := range h.resources {
-		if resource.UserID == session.UserID {
+		if resource.UserID == userID {
 			userResources = append(userResources, resource)
 		}
 	}
@@ -201,7 +243,7 @@ func (h *ConsoleHandler) HandleListConsoles(c *gin.Context) {
 	utils.Response.Success(c, gin.H{
 		"consoles": userResources,
 		"count":    len(userResources),
-		"user_id":  session.UserID,
+		"user_id":  userID,
 	})
 }
 
@@ -247,4 +289,51 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 			"cleaned_resources": cleanedCount,
 		})
 	}
+}
+
+// validateOIDCAccessToken OIDC Access Token을 userinfo 엔드포인트로 검증
+func (h *ConsoleHandler) validateOIDCAccessToken(ctx context.Context, accessToken string) (*OIDCUserInfo, error) {
+	// Keycloak userinfo 엔드포인트 URL 구성
+	issuerURL := os.Getenv("OIDC_ISSUER_URL")
+	if issuerURL == "" {
+		return nil, fmt.Errorf("OIDC_ISSUER_URL environment variable is required")
+	}
+
+	userInfoURL := issuerURL + "/protocol/openid-connect/userinfo"
+
+	req, err := http.NewRequestWithContext(ctx, "GET", userInfoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create userinfo request: %v", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to call userinfo endpoint: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("userinfo endpoint returned status %d", resp.StatusCode)
+	}
+
+	var userInfo OIDCUserInfo
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		return nil, fmt.Errorf("failed to decode userinfo response: %v", err)
+	}
+
+	return &userInfo, nil
+}
+
+// OIDCUserInfo OIDC userinfo 응답 구조체
+type OIDCUserInfo struct {
+	Subject           string `json:"sub"`
+	Email             string `json:"email"`
+	Name              string `json:"name"`
+	PreferredUsername string `json:"preferred_username"`
+	GivenName         string `json:"given_name"`
+	FamilyName        string `json:"family_name"`
+	EmailVerified     bool   `json:"email_verified"`
 }

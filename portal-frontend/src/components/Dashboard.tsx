@@ -18,7 +18,6 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isTitleClicked, setIsTitleClicked] = useState(false);
-  const [isBackendSessionReady, setIsBackendSessionReady] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -50,40 +49,6 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     }
   ];
 
-  // 백엔드 세션 생성 (컴포넌트 마운트 시)
-  useEffect(() => {
-    const createBackendSession = async () => {
-      console.log('Dashboard useEffect triggered:', {
-        hasAccessToken: !!user?.access_token,
-        isBackendSessionReady,
-        userObject: user
-      });
-
-      if (user?.access_token && !isBackendSessionReady) {
-        try {
-          setIsLoading(true);
-          setError(null);
-          
-          console.log('Attempting to create backend session with token:', user.access_token.substring(0, 20) + '...');
-          await backendAuthService.createBackendSession(user.access_token);
-          setIsBackendSessionReady(true);
-          console.log('Backend session created successfully');
-        } catch (error) {
-          console.error('Failed to create backend session:', error);
-          setError(`백엔드 세션 생성에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-        } finally {
-          setIsLoading(false);
-        }
-      } else {
-        console.log('Skipping backend session creation:', {
-          noAccessToken: !user?.access_token,
-          sessionAlreadyReady: isBackendSessionReady
-        });
-      }
-    };
-
-    createBackendSession();
-  }, [user?.access_token, isBackendSessionReady]);
 
   // 메시지 자동 숨김
   useEffect(() => {
@@ -102,8 +67,8 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
   };
 
   const handleWebConsoleClick = async () => {
-    if (!isBackendSessionReady) {
-      setError('백엔드 세션이 준비되지 않았습니다. 잠시 후 다시 시도해주세요.');
+    if (!user?.access_token) {
+      setError('인증 토큰이 없습니다. 다시 로그인해주세요.');
       return;
     }
 
@@ -111,7 +76,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       setIsLoading(true);
       setError(null);
       
-      const result = await backendAuthService.launchWebConsole();
+      const result = await backendAuthService.launchWebConsole(user.access_token);
       
       setSuccess('Web Console이 성공적으로 실행되었습니다!');
       
@@ -139,20 +104,12 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     try {
       setIsLoading(true);
       
-      // 백엔드 로그아웃 (K8s 리소스 정리 포함)
-      const logoutUrl = await backendAuthService.logout();
-      
       // 백엔드 세션 상태 리셋
-      setIsBackendSessionReady(false);
       backendAuthService.resetSessionState();
       
-      // 프론트엔드 로그아웃
+      // 프론트엔드 로그아웃 (react-oidc-context에서 처리)
       onLogout();
       
-      // Keycloak 로그아웃 URL이 있으면 리다이렉트
-      if (logoutUrl) {
-        window.location.href = logoutUrl;
-      }
     } catch (error) {
       console.error('Logout error:', error);
       // 에러가 있어도 프론트엔드 로그아웃은 진행
@@ -326,7 +283,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
                         window.open(menuItems.find(item => item.id === activeMenu)?.url, '_blank');
                       }
                     }}
-                    disabled={activeMenu === 'terminal' && (!isBackendSessionReady || isLoading)}
+                    disabled={activeMenu === 'terminal' && (!user?.access_token || isLoading)}
                   >
                     {activeMenu === 'terminal' && isLoading ? (
                       <>
