@@ -70,7 +70,7 @@ spec:
               key: target-cluster-ca-cert-data
         # 웹 콘솔 외부 접근 URL
         - name: WEB_CONSOLE_BASE_URL
-          value: "https://console.basphere.dev"
+          value: "console.basphere.dev"
         - name: INGRESS_CLASS
           value: "cilium"
         # 웹 터미널 이미지

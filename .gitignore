@@ -166,3 +166,7 @@ portal-frontend/build/
 # ===== 배포 파일 =====
 # deployment/ 디렉토리는 Secret으로 민감 정보를 관리하므로 포함
 # deployment/user-portal-secrets.yaml은 실제 환경에서만 생성 
+portal-frontend/src/components/WebTerminal_BACKUP_1996.tsx
+portal-frontend/src/components/WebTerminal_BASE_1996.tsx
+portal-frontend/src/components/WebTerminal_LOCAL_1996.tsx
+portal-frontend/src/components/WebTerminal_REMOTE_1996.tsx

@@ -52,7 +52,6 @@ func main() {
 
 	r.Use(middleware.RecoveryLoggingMiddleware())
 	r.Use(middleware.RequestLoggingMiddleware())
-	r.Use(middleware.SetUserIDMiddleware())
 	r.Use(middleware.ErrorLoggingMiddleware())
 
 	// CORS 설정
@@ -84,11 +83,6 @@ func main() {
 	// API 라우트 설정
 	api := r.Group("/api")
 	{
-		api.GET("/login", authHandler.HandleLogin)
-		api.GET("/callback", authHandler.HandleCallback)
-		api.GET("/user", authHandler.HandleGetUser)
-		api.POST("/logout", authHandler.HandleLogout)
-
 		console := api.Group("/console")
 		{
 			console.GET("/launch", consoleHandler.HandleLaunchConsole)
@@ -96,6 +90,7 @@ func main() {
 			console.DELETE("/:resourceId", consoleHandler.HandleDeleteConsole)
 		}
 
+		// 하위 호환성을 위한 라우트
 		api.GET("/launch-console", consoleHandler.HandleLaunchConsole)
 	}
 

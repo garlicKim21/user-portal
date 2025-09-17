@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"portal-backend/internal/auth"
+	portalConfig "portal-backend/internal/config"
 )
 
 // ConsoleResource 웹 콘솔 리소스 정보
@@ -361,7 +362,7 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 			}(),
 			Rules: []networkingv1.IngressRule{
 				{
-					Host: "console.basphere.dev",
+					Host: portalConfig.Get().Console.BaseURL,
 					IngressRuleValue: networkingv1.IngressRuleValue{
 						HTTP: &networkingv1.HTTPIngressRuleValue{
 							Paths: []networkingv1.HTTPIngressPath{
@@ -401,11 +402,8 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 	}
 
 	// 콘솔 URL 생성 (사용자별 고유 경로)
-	baseURL := os.Getenv("WEB_CONSOLE_BASE_URL")
-	if baseURL == "" {
-		baseURL = "https://console.basphere.dev"
-	}
-	consoleResource.ConsoleURL = fmt.Sprintf("%s/%s/%s", baseURL, userID, fullUUID)
+	baseURL := portalConfig.Get().Console.BaseURL
+	consoleResource.ConsoleURL = fmt.Sprintf("https://%s/%s/%s", baseURL, userID, fullUUID)
 
 	return consoleResource, nil
 }

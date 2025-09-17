@@ -80,22 +80,23 @@ func ExtractUserGroups(idToken string) (*UserGroups, error) {
 // 우선순위: admin > developer > viewer > user
 func (ug *UserGroups) GetUserRole() string {
 	for _, group := range ug.Groups {
-		switch strings.ToLower(group) {
-		case "admins", "admin":
+		// /최상위그룹/서비스명/권한 형태 파싱
+		if !strings.HasPrefix(group, "/") {
+			continue
+		}
+
+		parts := strings.Split(strings.TrimPrefix(group, "/"), "/")
+		if len(parts) < 3 {
+			continue
+		}
+
+		role := parts[2]
+		switch role {
+		case "adm":
 			return "admin"
-		}
-	}
-
-	for _, group := range ug.Groups {
-		switch strings.ToLower(group) {
-		case "developers", "developer":
+		case "dev":
 			return "developer"
-		}
-	}
-
-	for _, group := range ug.Groups {
-		switch strings.ToLower(group) {
-		case "viewers", "viewer":
+		case "view":
 			return "viewer"
 		}
 	}
@@ -130,9 +131,9 @@ func (ug *UserGroups) ToJSON() string {
 
 // RolePriority 역할 우선순위를 정의 (낮을수록 높음)
 var RolePriority = map[string]int{
-	"admins":     1,
-	"developers": 2,
-	"viewers":    3,
+	"adm":  1, // 최고 권한
+	"dev":  2, // 중간 권한
+	"view": 3, // 최저 권한
 }
 
 // DetermineDefaultNamespace 사용자의 그룹 목록을 기반으로 기본 네임스페이스를 결정합니다.
@@ -147,13 +148,18 @@ func (ug *UserGroups) DetermineDefaultNamespace() string {
 
 	// 다른 그룹들을 순회하며 가장 높은 우선순위의 네임스페이스 후보들을 수집합니다.
 	for _, group := range ug.Groups {
-		parts := strings.SplitN(group, "-", 2)
-		if len(parts) != 2 {
+		// /최상위그룹/서비스명/권한 형태 파싱
+		if !strings.HasPrefix(group, "/") {
 			continue
 		}
 
-		namespace := parts[0]
-		role := parts[1]
+		parts := strings.Split(strings.TrimPrefix(group, "/"), "/")
+		if len(parts) < 3 {
+			continue
+		}
+
+		namespace := parts[1] // 서비스명
+		role := parts[2]      // 권한 (adm, dev, view)
 
 		priority, ok := RolePriority[role]
 		if !ok {
