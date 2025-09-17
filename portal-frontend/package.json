@@ -1,5 +1,5 @@
 {
-      "name": "Developer Portal Dashboard",
+      "name": "portal-frontend",
       "version": "0.1.0",
       "private": true,
       "dependencies": {
