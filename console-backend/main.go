@@ -92,6 +92,9 @@ func main() {
 
 		// 하위 호환성을 위한 라우트
 		api.GET("/launch-console", consoleHandler.HandleLaunchConsole)
+
+		// 로그아웃 라우트
+		api.POST("/logout", consoleHandler.HandleLogout)
 	}
 
 	// 헬스체크 엔드포인트

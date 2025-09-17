@@ -568,6 +568,94 @@ func (c *Client) cleanupResourcesByLabels(namespace string, labels map[string]st
 	return nil
 }
 
+// DeleteUserResources 사용자별 모든 Web Console 리소스 삭제
+func (c *Client) DeleteUserResources(userID, namespace string) error {
+	ctx := context.Background()
+	deletePolicy := metav1.DeletePropagationForeground
+
+	// 사용자별 라벨 셀렉터
+	userLabelSelector := fmt.Sprintf("app=web-console,user=%s", userID)
+
+	log.Printf("Deleting all resources for user: %s", userID)
+
+	// 1. Service 삭제
+	services, err := c.Clientset.CoreV1().Services(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: userLabelSelector,
+	})
+	if err != nil {
+		log.Printf("Failed to list services for user %s: %v", userID, err)
+	} else {
+		for _, service := range services.Items {
+			err = c.Clientset.CoreV1().Services(namespace).Delete(ctx, service.Name, metav1.DeleteOptions{
+				PropagationPolicy: &deletePolicy,
+			})
+			if err != nil {
+				log.Printf("Failed to delete Service %s: %v", service.Name, err)
+			} else {
+				log.Printf("Deleted Service: %s", service.Name)
+			}
+		}
+	}
+
+	// 2. Deployment 삭제
+	deployments, err := c.Clientset.AppsV1().Deployments(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: userLabelSelector,
+	})
+	if err != nil {
+		log.Printf("Failed to list deployments for user %s: %v", userID, err)
+	} else {
+		for _, deployment := range deployments.Items {
+			err = c.Clientset.AppsV1().Deployments(namespace).Delete(ctx, deployment.Name, metav1.DeleteOptions{
+				PropagationPolicy: &deletePolicy,
+			})
+			if err != nil {
+				log.Printf("Failed to delete Deployment %s: %v", deployment.Name, err)
+			} else {
+				log.Printf("Deleted Deployment: %s", deployment.Name)
+			}
+		}
+	}
+
+	// 3. Secret 삭제
+	secrets, err := c.Clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: userLabelSelector,
+	})
+	if err != nil {
+		log.Printf("Failed to list secrets for user %s: %v", userID, err)
+	} else {
+		for _, secret := range secrets.Items {
+			err = c.Clientset.CoreV1().Secrets(namespace).Delete(ctx, secret.Name, metav1.DeleteOptions{})
+			if err != nil {
+				log.Printf("Failed to delete Secret %s: %v", secret.Name, err)
+			} else {
+				log.Printf("Deleted Secret: %s", secret.Name)
+			}
+		}
+	}
+
+	// 4. Ingress 삭제
+	ingresses, err := c.Clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: userLabelSelector,
+	})
+	if err != nil {
+		log.Printf("Failed to list ingresses for user %s: %v", userID, err)
+	} else {
+		for _, ingress := range ingresses.Items {
+			err = c.Clientset.NetworkingV1().Ingresses(namespace).Delete(ctx, ingress.Name, metav1.DeleteOptions{})
+			if err != nil {
+				log.Printf("Failed to delete Ingress %s: %v", ingress.Name, err)
+			} else {
+				log.Printf("Deleted Ingress: %s", ingress.Name)
+			}
+		}
+	}
+
+	// 참고: PVC는 사용자 히스토리 보존을 위해 삭제하지 않음
+
+	log.Printf("Completed resource cleanup for user: %s", userID)
+	return nil
+}
+
 // parseInt32 문자열을 int32로 변환
 func parseInt32(s string) int32 {
 	var result int32

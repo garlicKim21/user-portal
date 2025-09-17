@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"portal-backend/internal/auth"
+	"portal-backend/internal/config"
 	"portal-backend/internal/kubernetes"
 	"portal-backend/internal/logger"
 	"portal-backend/internal/models"
@@ -245,6 +247,135 @@ func (h *ConsoleHandler) HandleListConsoles(c *gin.Context) {
 		"count":    len(userResources),
 		"user_id":  userID,
 	})
+}
+
+// HandleLogout 사용자 로그아웃 처리 (K8s 리소스 정리 + 세션 삭제)
+func (h *ConsoleHandler) HandleLogout(c *gin.Context) {
+	ctx := context.Background()
+
+	// JWT 쿠키에서 사용자 정보 추출
+	userID, err := h.extractUserFromCookie(c)
+	if err != nil {
+		logger.ErrorWithContext(ctx, "Failed to extract user from cookie", err, map[string]any{
+			"error": err.Error(),
+		})
+		utils.Response.Unauthorized(c, "Invalid or missing authentication cookie")
+		return
+	}
+
+	logger.InfoWithContext(ctx, "Processing logout for user", map[string]any{
+		"user_id": userID,
+	})
+
+	// 1. 사용자별 모든 Web Console 리소스 정리
+	config := kubernetes.GetDefaultConfig()
+	err = h.k8sClient.DeleteUserResources(userID, config.Namespace)
+	if err != nil {
+		logger.ErrorWithContext(ctx, "Failed to cleanup user resources", err, map[string]any{
+			"user_id": userID,
+		})
+		// 리소스 정리 실패해도 로그아웃은 진행
+	}
+
+	// 2. 메모리에서 사용자 리소스 정리
+	h.cleanupUserResourcesFromMemory(userID)
+
+	// 3. JWT 쿠키 삭제
+	c.SetCookie("portal-jwt", "", -1, "/", "", true, true)
+
+	// 4. Keycloak 로그아웃 URL 생성
+	logoutURL := h.generateKeycloakLogoutURL()
+
+	logger.InfoWithContext(ctx, "Logout completed successfully", map[string]any{
+		"user_id":    userID,
+		"logout_url": logoutURL,
+	})
+
+	// 5. 응답 반환
+	c.JSON(http.StatusOK, gin.H{
+		"success":    true,
+		"message":    "Logout completed successfully",
+		"logout_url": logoutURL,
+	})
+}
+
+// extractUserFromCookie JWT 쿠키에서 사용자 정보 추출
+func (h *ConsoleHandler) extractUserFromCookie(c *gin.Context) (string, error) {
+	// JWT 쿠키에서 토큰 추출
+	jwtToken, err := c.Cookie("portal-jwt")
+	if err != nil {
+		return "", fmt.Errorf("portal-jwt cookie not found: %v", err)
+	}
+
+	// 간단한 JWT 토큰 파싱 (base64 디코딩)
+	// JWT 형식: header.payload.signature
+	parts := strings.Split(jwtToken, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("invalid JWT token format")
+	}
+
+	// payload 부분 디코딩
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("failed to decode JWT payload: %v", err)
+	}
+
+	// JSON 파싱
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", fmt.Errorf("failed to parse JWT claims: %v", err)
+	}
+
+	// 사용자 ID 추출
+	userID, ok := claims["user_id"].(string)
+	if !ok {
+		return "", fmt.Errorf("user_id not found in JWT claims")
+	}
+
+	return userID, nil
+}
+
+// cleanupUserResourcesFromMemory 메모리에서 사용자 리소스 정리
+func (h *ConsoleHandler) cleanupUserResourcesFromMemory(userID string) {
+	var resourcesToDelete []string
+
+	// 사용자별 리소스 찾기
+	for resourceID, resource := range h.resources {
+		if resource.UserID == userID {
+			resourcesToDelete = append(resourcesToDelete, resourceID)
+		}
+	}
+
+	// 리소스 삭제
+	for _, resourceID := range resourcesToDelete {
+		delete(h.resources, resourceID)
+		logger.InfoWithContext(context.TODO(), "Removed resource from memory", map[string]any{
+			"resource_id": resourceID,
+			"user_id":     userID,
+		})
+	}
+
+	if len(resourcesToDelete) > 0 {
+		logger.InfoWithContext(context.TODO(), "Memory cleanup completed", map[string]any{
+			"user_id":           userID,
+			"cleaned_resources": len(resourcesToDelete),
+		})
+	}
+}
+
+// generateKeycloakLogoutURL Keycloak 로그아웃 URL 생성
+func (h *ConsoleHandler) generateKeycloakLogoutURL() string {
+	config := config.Get()
+
+	// Keycloak 로그아웃 URL 형식:
+	// {issuer}/protocol/openid-connect/logout?client_id={client_id}&post_logout_redirect_uri={redirect_uri}
+	logoutURL := fmt.Sprintf("%s/protocol/openid-connect/logout?client_id=%s&post_logout_redirect_uri=%s",
+		config.OIDC.IssuerURL,
+		config.OIDC.ClientID,
+		"https://front.miribit.cloud", // 프론트엔드 URL로 리다이렉트
+	)
+
+	return logoutURL
 }
 
 // startCleanupRoutine 백그라운드 정리 루틴 시작
