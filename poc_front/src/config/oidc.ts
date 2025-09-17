@@ -21,6 +21,9 @@ export const oidcConfig = {
   pkce: false,
   // 세션 만료 시간 (30분)
   accessTokenExpiringNotificationTime: 300,
+  // 로그아웃 관련 설정
+  revokeTokensOnSignout: true,
+  includeIdTokenInSilentRenew: true,
   // react-oidc-context 특별 설정
   metadata: {
     issuer: 'https://keycloak.miribit.cloud/realms/sso-demo',

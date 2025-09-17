@@ -3,6 +3,7 @@ import { LoginPage } from './LoginPage';
 import { Dashboard } from './Dashboard';
 import { Callback } from './Callback';
 import { useLocation } from 'react-router-dom';
+import { authService } from '../services/authService';
 
 export function AuthWrapper() {
   const { signinRedirect, signoutRedirect, isAuthenticated, user, isLoading } = useAuth();
@@ -30,6 +31,21 @@ export function AuthWrapper() {
     return <LoginPage onLogin={() => signinRedirect()} />;
   }
 
+  // 완전한 로그아웃 처리 함수
+  const handleLogout = async () => {
+    try {
+      console.log('로그아웃 시작...');
+      
+      // AuthService의 완전한 로그아웃 처리 사용
+      await authService.logout();
+      
+    } catch (error) {
+      console.error('로그아웃 중 오류:', error);
+      // 오류가 발생해도 강제로 로그아웃 처리
+      window.location.href = '/';
+    }
+  };
+
   // 인증된 경우 대시보드 표시
-  return <Dashboard onLogout={() => signoutRedirect()} user={user} />;
+  return <Dashboard onLogout={handleLogout} user={user} />;
 }

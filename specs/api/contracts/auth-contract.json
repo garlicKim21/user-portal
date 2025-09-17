@@ -1,0 +1,94 @@
+{
+  "name": "Authentication Service Contract",
+  "version": "1.0.0",
+  "description": "사용자 인증 서비스 계약서",
+  "provider": {
+    "name": "User Portal Backend",
+    "url": "https://portal.miribit.cloud/api"
+  },
+  "consumer": {
+    "name": "User Portal Frontend",
+    "url": "https://portal.miribit.cloud"
+  },
+  "interactions": [
+    {
+      "description": "사용자 로그인 요청",
+      "request": {
+        "method": "POST",
+        "path": "/auth/login",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "username": "X0157671",
+          "password": "pass123"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "access_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+          "refresh_token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+          "expires_in": 3600,
+          "token_type": "Bearer"
+        }
+      }
+    },
+    {
+      "description": "사용자 로그아웃 요청",
+      "request": {
+        "method": "POST",
+        "path": "/auth/logout",
+        "headers": {
+          "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...",
+          "Content-Type": "application/json"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "message": "로그아웃이 완료되었습니다."
+        }
+      }
+    },
+    {
+      "description": "사용자 프로필 조회",
+      "request": {
+        "method": "GET",
+        "path": "/user/profile",
+        "headers": {
+          "Authorization": "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "sub": "X0157671",
+          "name": "김민수",
+          "email": "X0157671@datalake.miribit.lab",
+          "preferred_username": "X0157671",
+          "given_name": "민수",
+          "family_name": "김",
+          "roles": ["user", "developer"],
+          "groups": ["fdc", "analytics"]
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "pactSpecification": {
+      "version": "3.0.0"
+    },
+    "created": "2024-01-01T00:00:00Z",
+    "updated": "2024-01-01T00:00:00Z"
+  }
+}

@@ -79,6 +79,42 @@ export class AuthService {
       return false;
     }
   }
+
+  // 완전한 로그아웃 처리
+  async logout(): Promise<void> {
+    try {
+      console.log('AuthService 로그아웃 시작...');
+      
+      // 1. 토큰 정리
+      this.accessToken = null;
+      
+      // 2. 로컬 스토리지 정리
+      const oidcUserKey = 'oidc.user:https://keycloak.miribit.cloud/realms/sso-demo:frontend';
+      localStorage.removeItem(oidcUserKey);
+      sessionStorage.clear();
+      
+      // 3. Keycloak 로그아웃 URL 생성
+      const logoutUrl = `${apiEndpoints.keycloak}/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
+      
+      console.log('Keycloak 로그아웃 URL:', logoutUrl);
+      
+      // 4. Keycloak 로그아웃으로 리다이렉트
+      window.location.href = logoutUrl;
+      
+    } catch (error) {
+      console.error('AuthService 로그아웃 중 오류:', error);
+      // 오류가 발생해도 강제로 홈으로 리다이렉트
+      window.location.href = '/';
+    }
+  }
+
+  // 세션 완전 정리 (계정 전환 시 사용)
+  clearSession(): void {
+    console.log('세션 완전 정리...');
+    this.accessToken = null;
+    localStorage.clear();
+    sessionStorage.clear();
+  }
 }
 
 export const authService = AuthService.getInstance();

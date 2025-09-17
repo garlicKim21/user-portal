@@ -1,0 +1,337 @@
+openapi: 3.0.3
+info:
+  title: User Portal API
+  description: 빅데이터 분석 플랫폼 사용자 포털 API 스펙
+  version: 1.0.0
+  contact:
+    name: SK하이닉스 개발팀
+    email: dev@skhynix.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://portal.miribit.cloud/api
+    description: Production server
+  - url: https://dev-portal.miribit.cloud/api
+    description: Development server
+
+security:
+  - OAuth2: []
+  - ApiKeyAuth: []
+
+paths:
+  /auth/login:
+    post:
+      summary: 사용자 로그인
+      description: Keycloak OIDC를 통한 사용자 인증
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      summary: 사용자 로그아웃
+      description: 사용자 세션 종료 및 토큰 무효화
+      tags:
+        - Authentication
+      security:
+        - OAuth2: []
+      responses:
+        '200':
+          description: 로그아웃 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+
+  /auth/refresh:
+    post:
+      summary: 토큰 갱신
+      description: 액세스 토큰 갱신
+      tags:
+        - Authentication
+      security:
+        - OAuth2: []
+      responses:
+        '200':
+          description: 토큰 갱신 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+
+  /user/profile:
+    get:
+      summary: 사용자 프로필 조회
+      description: 현재 로그인한 사용자의 프로필 정보 조회
+      tags:
+        - User
+      security:
+        - OAuth2: []
+      responses:
+        '200':
+          description: 사용자 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: 인증되지 않은 사용자
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /services/grafana:
+    get:
+      summary: Grafana 접속 URL 생성
+      description: 사용자 토큰을 포함한 Grafana 접속 URL 생성
+      tags:
+        - Services
+      security:
+        - OAuth2: []
+      responses:
+        '200':
+          description: Grafana URL 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceUrlResponse'
+
+  /services/argocd:
+    get:
+      summary: ArgoCD 접속 URL 생성
+      description: 사용자 토큰을 포함한 ArgoCD 접속 URL 생성
+      tags:
+        - Services
+      security:
+        - OAuth2: []
+      responses:
+        '200':
+          description: ArgoCD URL 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceUrlResponse'
+
+  /terminal/launch:
+    post:
+      summary: 웹 터미널 시작
+      description: 사용자용 웹 터미널 세션 시작
+      tags:
+        - Terminal
+      security:
+        - OAuth2: []
+      responses:
+        '200':
+          description: 터미널 시작 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerminalResponse'
+        '403':
+          description: 터미널 접근 권한 없음
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /terminal/{resourceId}:
+    delete:
+      summary: 웹 터미널 종료
+      description: 웹 터미널 세션 종료
+      tags:
+        - Terminal
+      security:
+        - OAuth2: []
+      parameters:
+        - name: resourceId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 터미널 리소스 ID
+      responses:
+        '200':
+          description: 터미널 종료 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/auth
+          tokenUrl: https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/token
+          scopes:
+            openid: OpenID Connect
+            profile: 사용자 프로필
+            email: 이메일 주소
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: 사용자명
+          example: "X0157671"
+        password:
+          type: string
+          description: 비밀번호
+          example: "pass123"
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: 액세스 토큰
+        refresh_token:
+          type: string
+          description: 리프레시 토큰
+        expires_in:
+          type: integer
+          description: 토큰 만료 시간(초)
+        token_type:
+          type: string
+          description: 토큰 타입
+          example: "Bearer"
+
+    LogoutResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: 로그아웃 메시지
+          example: "로그아웃이 완료되었습니다."
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: 새로운 액세스 토큰
+        expires_in:
+          type: integer
+          description: 토큰 만료 시간(초)
+
+    UserProfile:
+      type: object
+      properties:
+        sub:
+          type: string
+          description: 사용자 ID
+        name:
+          type: string
+          description: 사용자 이름
+        email:
+          type: string
+          description: 이메일 주소
+        preferred_username:
+          type: string
+          description: 선호 사용자명
+        given_name:
+          type: string
+          description: 이름
+        family_name:
+          type: string
+          description: 성
+        roles:
+          type: array
+          items:
+            type: string
+          description: 사용자 역할
+        groups:
+          type: array
+          items:
+            type: string
+          description: 사용자 그룹
+
+    ServiceUrlResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          description: 서비스 접속 URL
+        expires_at:
+          type: string
+          format: date-time
+          description: URL 만료 시간
+
+    TerminalResponse:
+      type: object
+      properties:
+        resourceId:
+          type: string
+          description: 터미널 리소스 ID
+        url:
+          type: string
+          description: 터미널 접속 URL
+        expires_at:
+          type: string
+          format: date-time
+          description: 터미널 만료 시간
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: 성공 여부
+        message:
+          type: string
+          description: 응답 메시지
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: 오류 코드
+        message:
+          type: string
+          description: 오류 메시지
+        details:
+          type: object
+          description: 추가 오류 정보
+
+tags:
+  - name: Authentication
+    description: 사용자 인증 관련 API
+  - name: User
+    description: 사용자 정보 관련 API
+  - name: Services
+    description: 외부 서비스 연동 API
+  - name: Terminal
+    description: 웹 터미널 관련 API

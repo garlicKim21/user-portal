@@ -57,7 +57,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       name: 'Secure Web Terminal',
       icon: Terminal,
       iconImage: null,
-      url: '#terminal'
+      url: 'https://portal.miribit.cloud/api/launch-console'
     },
     {
       id: 'jenkins',

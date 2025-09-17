@@ -57,6 +57,22 @@
       },
       "scripts": {
             "dev": "vite",
-            "build": "vite build"
+            "build": "vite build",
+            "test": "vitest",
+            "test:ui": "vitest --ui",
+            "test:coverage": "vitest --coverage",
+            "test:e2e": "playwright test",
+            "test:e2e:ui": "playwright test --ui",
+            "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+            "lint:fix": "eslint . --ext ts,tsx --fix",
+            "type-check": "tsc --noEmit",
+            "format": "prettier --write .",
+            "format:check": "prettier --check .",
+            "storybook": "storybook dev -p 6006",
+            "build-storybook": "storybook build",
+            "generate:api": "node ../specs/tools/codegen/openapi-generator.js",
+            "validate:specs": "node ../specs/tools/validation/spec-validator.js",
+            "test:contracts": "pact-js verify --pactDir ../specs/api/contracts",
+            "prepare": "husky install"
       }
 }
