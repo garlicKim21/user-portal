@@ -61,8 +61,8 @@ export function ProjectSelector({ projects, currentProject, onProjectChange }: P
           <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setOpen(false)} />
           
           {/* 드롭다운 메뉴 */}
-          <div className="absolute top-full left-0 mt-1 w-[280px] bg-white border rounded-lg shadow-xl z-50 backdrop-blur-sm">
-            <div className="p-2 space-y-1">
+          <div className="absolute top-full left-0 mt-1 w-[280px] bg-white border border-gray-300 rounded-lg shadow-2xl z-50">
+            <div className="p-2 space-y-1 bg-white rounded-lg">
               {projects.map((project) => (
                 <div
                   key={project.id}
@@ -70,8 +70,8 @@ export function ProjectSelector({ projects, currentProject, onProjectChange }: P
                     onProjectChange(project);
                     setOpen(false);
                   }}
-                  className={`p-3 rounded cursor-pointer hover:bg-gray-100 transition-colors ${
-                    currentProject?.id === project.id ? 'bg-blue-50 border border-blue-200' : ''
+                  className={`p-3 rounded cursor-pointer hover:bg-gray-50 transition-colors border ${
+                    currentProject?.id === project.id ? 'bg-blue-50 border-blue-300' : 'border-transparent hover:border-gray-200'
                   }`}
                 >
                   <div className="flex items-center justify-between">

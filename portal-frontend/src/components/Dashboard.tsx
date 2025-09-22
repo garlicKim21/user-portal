@@ -126,7 +126,7 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
                   alt="SK하이닉스" 
                   className="h-8 w-auto"
                 />
-                <h2 className="text-sidebar-foreground">빅데이터 분석 플랫폼</h2>
+                <h2 className="text-sm font-medium text-sidebar-foreground">빅데이터 분석 플랫폼</h2>
               </div>
             )}
             {!sidebarOpen && (
@@ -201,7 +201,7 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
             }`}
             onClick={handleTitleClick}
           >
-            <h1 className="text-xl font-bold">User Portal Dashboard</h1>
+            <h1 className="text-xl font-bold">Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
             {user.projects.length > 1 && (
