@@ -512,16 +512,9 @@ func (h *ConsoleHandler) HandleDeleteUserResources(c *gin.Context) {
 		"user_id": userID,
 	})
 
-	// Keycloak 로그아웃 URL 생성
-	logoutURL := fmt.Sprintf("%s/protocol/openid-connect/logout?client_id=%s&post_logout_redirect_uri=%s",
-		h.authHandler.oidcProvider.GetIssuerURL(),
-		"frontend",
-		"https://portal.miribit.cloud")
-
 	utils.Response.Success(c, gin.H{
-		"message":    "All console resources deleted successfully",
-		"user_id":    userID,
-		"logout_url": logoutURL,
+		"message": "All console resources deleted successfully",
+		"user_id": userID,
 	})
 }
 

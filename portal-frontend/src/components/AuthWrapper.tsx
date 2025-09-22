@@ -36,8 +36,8 @@ export function AuthWrapper() {
     try {
       console.log('로그아웃 시작...');
       
-      // AuthService의 완전한 로그아웃 처리 사용
-      await authService.logout();
+      // react-oidc-context의 signoutRedirect 사용
+      await signoutRedirect();
       
     } catch (error) {
       console.error('로그아웃 중 오류:', error);

@@ -18,13 +18,13 @@ spec:
       serviceAccountName: portal-backend-sa
       containers:
       - name: user-portal-backend
-        image: projectgreenist/user-portal-backend:0.4.12
+        image: projectgreenist/user-portal-backend:0.4.24
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
         env:
         - name: OIDC_ISSUER_URL
-          value: "https://keycloak.miribit.cloud/realms/sso-dev"
+          value: "https://keycloak.miribit.cloud/realms/sso-demo"
         - name: OIDC_CLIENT_ID
           value: "portal-app"
         - name: ALLOWED_ORIGINS

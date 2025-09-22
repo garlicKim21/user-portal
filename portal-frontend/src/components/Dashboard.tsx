@@ -104,18 +104,18 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     try {
       setIsLoading(true);
       
-      // 1. 백엔드 로그아웃 API 호출 (K8s 리소스 정리 포함)
+      // 1. 백엔드 리소스 정리 API 호출 (K8s 리소스 정리만)
       if (user?.access_token) {
-        const result = await backendAuthService.logout(user.access_token);
-        
-        // 2. Keycloak 로그아웃 URL이 있으면 리다이렉트
-        if (result.logoutUrl) {
-          window.location.href = result.logoutUrl;
-          return; // 리다이렉트되므로 여기서 종료
+        try {
+          await backendAuthService.logout(user.access_token);
+          console.log('Backend resource cleanup completed');
+        } catch (error) {
+          console.error('Backend cleanup failed:', error);
+          // 리소스 정리 실패해도 로그아웃은 계속 진행
         }
       }
       
-      // 3. 백엔드 리소스 정리가 실패하거나 토큰이 없는 경우에도 프론트엔드 로그아웃 진행
+      // 2. 프론트엔드 로그아웃 처리 (react-oidc-context 사용)
       onLogout();
       
     } catch (error) {
