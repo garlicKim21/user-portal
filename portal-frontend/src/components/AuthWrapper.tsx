@@ -36,12 +36,19 @@ export function AuthWrapper() {
     try {
       console.log('로그아웃 시작...');
       
-      // react-oidc-context의 signoutRedirect 사용
-      await signoutRedirect();
+      // 로컬 스토리지에서 OIDC 사용자 정보 정리
+      const oidcUserKey = 'oidc.user:https://keycloak.miribit.cloud/realms/sso-demo:frontend';
+      localStorage.removeItem(oidcUserKey);
+      sessionStorage.clear();
+      
+      // 직접 Keycloak 로그아웃 URL로 리다이렉트
+      const logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}`;
+      console.log('Keycloak 로그아웃 URL로 리다이렉트:', logoutUrl);
+      window.location.href = logoutUrl;
       
     } catch (error) {
       console.error('로그아웃 중 오류:', error);
-      // 오류가 발생해도 강제로 로그아웃 처리
+      // 오류가 발생해도 강제로 홈으로 리다이렉트
       window.location.href = '/';
     }
   };

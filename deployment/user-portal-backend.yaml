@@ -18,7 +18,7 @@ spec:
       serviceAccountName: portal-backend-sa
       containers:
       - name: user-portal-backend
-        image: projectgreenist/user-portal-backend:0.4.24
+        image: projectgreenist/user-portal-backend:0.4.25
         imagePullPolicy: Always
         ports:
         - containerPort: 8080
