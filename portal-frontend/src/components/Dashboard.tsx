@@ -27,7 +27,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       id: 'grafana',
       name: 'Grafana',
       logo: '/Grafana_logo.svg.png',
-      url: 'https://grafana.miribit.cloud/auth/login?return_url=https://grafana.miribit.cloud/applications'
+      url: 'https://grafana.miribit.cloud'
     },
     {
       id: 'terminal',
