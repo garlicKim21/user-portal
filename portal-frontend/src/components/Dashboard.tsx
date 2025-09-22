@@ -313,85 +313,67 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-6">
-              {/* 사용자 정보 카드 (단순화) */}
-              {user && (
-                <Card className="max-w-xl mx-auto">
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-3">
-                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-2xl font-bold text-primary">
-                          {user.family_name ? user.family_name.charAt(0).toUpperCase() : user.preferred_username ? user.preferred_username.charAt(0).toUpperCase() : 'U'}
-                        </span>
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-semibold">
-                          {user.family_name && user.given_name 
-                            ? `${user.family_name}${user.given_name}` 
-                            : user.name || user.preferred_username || '사용자'
-                          }
-                        </h2>
-                        <p className="text-sm text-muted-foreground">
-                          빅데이터 분석 플랫폼 사용자
-                        </p>
-                      </div>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">사용자 ID:</span>
-                        <span className="text-sm">{user.preferred_username || '정보 없음'}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">사용자 이름:</span>
-                        <span className="text-sm">
-                          {user.family_name && user.given_name 
-                            ? `${user.family_name}${user.given_name}` 
-                            : user.name || '정보 없음'
-                          }
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">이메일:</span>
-                        <span className="text-sm">{user.email || '정보 없음'}</span>
+            <div className="flex items-center justify-center">
+              {/* 환영 메시지와 사용자 정보 통합 */}
+              <Card className="max-w-lg">
+                <CardHeader className="text-center">
+                  <CardTitle className="text-2xl font-bold">
+                    환영합니다! {user.family_name && user.given_name 
+                      ? `${user.family_name}${user.given_name}` 
+                      : user.name || user.preferred_username || '사용자'
+                    }님!
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* 사용자 정보 */}
+                  <div className="space-y-4">
+                    <div className="space-y-1">
+                      <span className="text-base font-bold text-gray-700">사용자 ID:</span>
+                      <div className="text-lg font-semibold">{user.preferred_username || '정보 없음'}</div>
+                    </div>
+                    <div className="space-y-1">
+                      <span className="text-base font-bold text-gray-700">사용자 이름:</span>
+                      <div className="text-lg font-semibold">
+                        {user.family_name && user.given_name 
+                          ? `${user.family_name}${user.given_name}` 
+                          : user.name || '정보 없음'
+                        }
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                    <div className="space-y-1">
+                      <span className="text-base font-bold text-gray-700">이메일:</span>
+                      <div className="text-lg font-semibold">{user.email || '정보 없음'}</div>
+                    </div>
+                  </div>
 
-              {/* 환영 메시지 및 도구 안내 */}
-              <div className="flex items-center justify-center">
-                <Card className="max-w-md">
-                  <CardHeader>
-                    <CardTitle>환영합니다!</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground">
+                  <hr className="border-gray-200" />
+
+                  {/* 도구 안내 */}
+                  <div>
+                    <p className="text-base text-gray-600 mb-4 font-medium">
                       왼쪽 메뉴에서 원하시는 도구를 선택하여 시작하세요.
                     </p>
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <img src="/Grafana_logo.svg.png" alt="Grafana" className="h-4 w-4 mr-2" />
-                        Grafana - 데이터 시각화
+                    <div className="space-y-3">
+                      <div className="flex items-center text-base text-gray-600">
+                        <img src="/Grafana_logo.svg.png" alt="Grafana" className="h-5 w-5 mr-3" />
+                        <span className="font-medium">Grafana - 데이터 시각화</span>
                       </div>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <img src="/Kubernetes.png" alt="Terminal" className="h-4 w-4 mr-2" />
-                        Secure Web Terminal - 안전한 터미널
+                      <div className="flex items-center text-base text-gray-600">
+                        <img src="/Kubernetes.png" alt="Terminal" className="h-5 w-5 mr-3" />
+                        <span className="font-medium">Secure Web Terminal - 안전한 터미널</span>
                       </div>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <img src="/jenkins.png" alt="Jenkins" className="h-4 w-4 mr-2" />
-                        Jenkins - CI/CD 파이프라인
+                      <div className="flex items-center text-base text-gray-600">
+                        <img src="/jenkins.png" alt="Jenkins" className="h-5 w-5 mr-3" />
+                        <span className="font-medium">Jenkins - CI/CD 파이프라인</span>
                       </div>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <img src="/Argo CD.png" alt="ArgoCD" className="h-4 w-4 mr-2" />
-                        ArgoCD - GitOps 배포
+                      <div className="flex items-center text-base text-gray-600">
+                        <img src="/Argo CD.png" alt="ArgoCD" className="h-5 w-5 mr-3" />
+                        <span className="font-medium">ArgoCD - GitOps 배포</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </main>
