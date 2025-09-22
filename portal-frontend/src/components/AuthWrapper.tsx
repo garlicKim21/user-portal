@@ -70,22 +70,23 @@ export function AuthWrapper() {
       console.log('OIDC Groups:', user.profile?.groups); // 디버깅용
       
       // 실제 OIDC 사용자 정보를 AppUser 타입으로 변환
+      const profile = user.profile || {};
       const appUserData: AppUser = {
         // OIDC 기본 정보 - profile 객체에서 가져오기
-        sub: user.profile?.sub || user.sub || '',
-        preferred_username: user.profile?.preferred_username || user.preferred_username || '',
-        name: user.profile?.name || user.name || 'Unknown User',
-        email: user.profile?.email || user.email || '',
-        given_name: user.profile?.given_name || user.given_name || '',
-        family_name: user.profile?.family_name || user.family_name || '',
-        email_verified: user.profile?.email_verified || user.email_verified || false,
-        auth_time: user.profile?.auth_time || user.auth_time || 0,
-        access_token: user.access_token || '',
-        id_token: user.id_token || '',
+        sub: (profile as any)?.sub || (user as any)?.sub || '',
+        preferred_username: (profile as any)?.preferred_username || (user as any)?.preferred_username || '',
+        name: (profile as any)?.name || (user as any)?.name || 'Unknown User',
+        email: (profile as any)?.email || (user as any)?.email || '',
+        given_name: (profile as any)?.given_name || (user as any)?.given_name || '',
+        family_name: (profile as any)?.family_name || (user as any)?.family_name || '',
+        email_verified: (profile as any)?.email_verified || (user as any)?.email_verified || false,
+        auth_time: (profile as any)?.auth_time || (user as any)?.auth_time || 0,
+        access_token: (user as any)?.access_token || '',
+        id_token: (user as any)?.id_token || '',
         
         // 앱에서 관리하는 프로젝트 정보
         // 실제 환경에서는 Keycloak groups 필드에서 파싱하거나 LDAP API 호출
-        projects: parseUserProjectsFromGroups(user.profile?.groups) || mockProjects
+        projects: parseUserProjectsFromGroups((profile as any)?.groups || (user as any)?.groups) || mockProjects
       };
       
       console.log('App User Data:', appUserData); // 디버깅용
