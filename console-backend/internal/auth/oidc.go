@@ -82,6 +82,11 @@ func (p *OIDCProvider) VerifyIDToken(ctx context.Context, rawIDToken string) (*o
 	return p.verifier.Verify(ctx, rawIDToken)
 }
 
+// GetIssuerURL OIDC Issuer URL 반환
+func (p *OIDCProvider) GetIssuerURL() string {
+	return p.config.IssuerURL
+}
+
 // GenerateRandomString 랜덤 문자열 생성
 func GenerateRandomString(length int) (string, error) {
 	b := make([]byte, length)

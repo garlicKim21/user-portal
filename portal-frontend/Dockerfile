@@ -19,7 +19,7 @@ RUN npm run build
 RUN ls -l /app
 
 # Nginx를 사용한 정적 파일 서빙
-FROM --platform=$TARGETPLATFORM nginx:alpine
+FROM nginx:alpine
 
 # 커스텀 nginx 설정 복사
 COPY nginx.conf /etc/nginx/nginx.conf

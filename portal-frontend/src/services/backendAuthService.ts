@@ -113,6 +113,41 @@ export class BackendAuthService {
   }
 
   /**
+   * 로그아웃 및 리소스 정리 (OIDC Access Token 사용)
+   * @param oidcAccessToken - react-oidc-context에서 받은 access_token
+   */
+  async logout(oidcAccessToken: string): Promise<{ logoutUrl: string }> {
+    try {
+      console.log('Calling logout cleanup API...');
+      
+      const response = await fetch('/api/logout-cleanup', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${oidcAccessToken}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ 
+          error: { message: response.statusText } 
+        }));
+        throw new Error(`Failed to cleanup resources: ${errorData.error?.message || response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('Logout cleanup successful:', data);
+      
+      return {
+        logoutUrl: data.data?.logout_url || ''
+      };
+    } catch (error) {
+      console.error('Error during logout cleanup:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 세션 상태 리셋 (호환성을 위해 유지하지만 아무 작업 안 함)
    */
   resetSessionState(): void {

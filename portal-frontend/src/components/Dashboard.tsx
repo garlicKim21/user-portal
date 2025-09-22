@@ -105,25 +105,22 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
       setIsLoading(true);
       
       // 1. 백엔드 로그아웃 API 호출 (K8s 리소스 정리 포함)
-      const logoutUrl = await backendAuthService.logout();
-      
-      // 2. 백엔드 세션 상태 리셋
-      setIsBackendSessionReady(false);
-      backendAuthService.resetSessionState();
-      
-      // 3. 프론트엔드 로그아웃 (react-oidc-context에서 처리)
-      onLogout();
-      
-      // 4. Keycloak 로그아웃 URL이 있으면 리다이렉트
-      if (logoutUrl) {
-        window.location.href = logoutUrl;
+      if (user?.access_token) {
+        const result = await backendAuthService.logout(user.access_token);
+        
+        // 2. Keycloak 로그아웃 URL이 있으면 리다이렉트
+        if (result.logoutUrl) {
+          window.location.href = result.logoutUrl;
+          return; // 리다이렉트되므로 여기서 종료
+        }
       }
+      
+      // 3. 백엔드 리소스 정리가 실패하거나 토큰이 없는 경우에도 프론트엔드 로그아웃 진행
+      onLogout();
       
     } catch (error) {
       console.error('Logout error:', error);
       // 에러가 있어도 프론트엔드 로그아웃은 진행
-      setIsBackendSessionReady(false);
-      backendAuthService.resetSessionState();
       onLogout();
     } finally {
       setIsLoading(false);

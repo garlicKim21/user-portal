@@ -458,6 +458,73 @@ func (h *ConsoleHandler) validateOIDCAccessToken(ctx context.Context, accessToke
 	return &userInfo, nil
 }
 
+// HandleDeleteUserResources 사용자별 모든 Web Console 리소스 삭제
+func (h *ConsoleHandler) HandleDeleteUserResources(c *gin.Context) {
+	ctx := context.Background()
+
+	// Authorization 헤더에서 Bearer 토큰(OIDC Access Token) 추출
+	authHeader := c.GetHeader("Authorization")
+	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
+		utils.Response.Unauthorized(c, "Authorization header with Bearer token is required")
+		return
+	}
+
+	oidcAccessToken := strings.TrimPrefix(authHeader, "Bearer ")
+
+	// OIDC Access Token 검증 (userinfo 엔드포인트 사용)
+	userInfo, err := h.validateOIDCAccessToken(ctx, oidcAccessToken)
+	if err != nil {
+		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
+			"error": err.Error(),
+		})
+		utils.Response.Unauthorized(c, "Invalid OIDC token")
+		return
+	}
+
+	userID := userInfo.PreferredUsername
+	if userID == "" {
+		userID = userInfo.Subject
+	}
+
+	// 사용자별 모든 리소스 삭제
+	logger.InfoWithContext(c.Request.Context(), "Deleting all console resources for user", map[string]any{
+		"user_id": userID,
+	})
+
+	cfg := config.Get()
+	err = h.k8sClient.DeleteUserResources(userID, cfg.Console.Namespace)
+	if err != nil {
+		logger.ErrorWithContext(c.Request.Context(), "Failed to delete user console resources", err, map[string]any{
+			"user_id": userID,
+		})
+		utils.Response.KubernetesError(c, "delete user console resources", err)
+		return
+	}
+
+	// 메모리에서 해당 사용자의 모든 리소스 제거
+	for resourceID, resource := range h.resources {
+		if resource.UserID == userID {
+			delete(h.resources, resourceID)
+		}
+	}
+
+	logger.InfoWithContext(c.Request.Context(), "Successfully deleted all console resources for user", map[string]any{
+		"user_id": userID,
+	})
+
+	// Keycloak 로그아웃 URL 생성
+	logoutURL := fmt.Sprintf("%s/protocol/openid-connect/logout?client_id=%s&post_logout_redirect_uri=%s",
+		h.authHandler.oidcProvider.GetIssuerURL(),
+		"frontend",
+		"https://portal.miribit.cloud")
+
+	utils.Response.Success(c, gin.H{
+		"message":    "All console resources deleted successfully",
+		"user_id":    userID,
+		"logout_url": logoutURL,
+	})
+}
+
 // OIDCUserInfo OIDC userinfo 응답 구조체
 type OIDCUserInfo struct {
 	Subject           string `json:"sub"`

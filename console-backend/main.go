@@ -95,6 +95,9 @@ func main() {
 
 		// 로그아웃 라우트
 		api.POST("/logout", consoleHandler.HandleLogout)
+		
+		// 사용자별 모든 리소스 삭제 라우트
+		api.POST("/logout-cleanup", consoleHandler.HandleDeleteUserResources)
 	}
 
 	// 헬스체크 엔드포인트

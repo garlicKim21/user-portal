@@ -24,18 +24,18 @@ spec:
         - containerPort: 8080
         env:
         - name: OIDC_ISSUER_URL
-          value: "https://keycloak.basphere.dev/realms/basphere"
+          value: "https://keycloak.miribit.cloud/realms/sso-dev"
         - name: OIDC_CLIENT_ID
           value: "portal-app"
         - name: ALLOWED_ORIGINS
-          value: "https://portal.basphere.dev"
+          value: "https://portal.miribit.cloud"
         - name: OIDC_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
               name: user-portal-secrets
               key: oidc-client-secret
         - name: OIDC_REDIRECT_URL
-          value: "https://portal.basphere.dev/api/callback"
+          value: "https://portal.miribit.cloud/api/callback"
         - name: JWT_SECRET_KEY
           valueFrom:
             secretKeyRef:
@@ -70,7 +70,7 @@ spec:
               key: target-cluster-ca-cert-data
         # 웹 콘솔 외부 접근 URL
         - name: WEB_CONSOLE_BASE_URL
-          value: "console.basphere.dev"
+          value: "console.miribit.cloud"
         - name: INGRESS_CLASS
           value: "cilium"
         # 웹 터미널 이미지
