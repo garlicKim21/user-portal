@@ -3,18 +3,20 @@ FROM --platform=$BUILDPLATFORM node:18-alpine AS builder
 
 # 작업 디렉토리 설정
 WORKDIR /app
+RUN mkdir -p dist
 
 # package.json과 package-lock.json 복사
 COPY package*.json ./
 
 # 의존성 설치
-RUN npm ci --only=production
+RUN npm ci
 
 # 소스 코드 복사
 COPY . .
 
 # 프로덕션 빌드
 RUN npm run build
+RUN ls -l /app
 
 # Nginx를 사용한 정적 파일 서빙
 FROM --platform=$TARGETPLATFORM nginx:alpine
@@ -23,7 +25,7 @@ FROM --platform=$TARGETPLATFORM nginx:alpine
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # 빌드된 파일을 nginx 디렉토리로 복사
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/build /usr/share/nginx/html
 
 # 포트 80 노출
 EXPOSE 80
