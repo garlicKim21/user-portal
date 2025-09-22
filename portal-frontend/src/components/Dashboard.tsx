@@ -5,7 +5,8 @@ import {
   Menu,
   X,
   AlertCircle,
-  Building2
+  Building2,
+  LogOut
 } from 'lucide-react';
 import { backendAuthService } from '../services/backendAuthService';
 import { ProjectSelector } from './ProjectSelector';
@@ -229,8 +230,16 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
             )}
             <UserInfo 
               user={user}
-              onLogout={onLogout}
             />
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={onLogout}
+              className="flex items-center gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              로그아웃
+            </Button>
           </div>
         </header>
 
@@ -305,19 +314,22 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
             </Card>
           ) : (
             <div className="space-y-6">
-              {/* 사용자 정보 카드 */}
+              {/* 사용자 정보 카드 (단순화) */}
               {user && (
-                <Card className="max-w-2xl mx-auto">
+                <Card className="max-w-xl mx-auto">
                   <CardHeader>
                     <CardTitle className="flex items-center space-x-3">
                       <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
                         <span className="text-2xl font-bold text-primary">
-                          {user.name ? user.name.charAt(0).toUpperCase() : user.preferred_username ? user.preferred_username.charAt(0).toUpperCase() : 'U'}
+                          {user.family_name ? user.family_name.charAt(0).toUpperCase() : user.preferred_username ? user.preferred_username.charAt(0).toUpperCase() : 'U'}
                         </span>
                       </div>
                       <div>
                         <h2 className="text-xl font-semibold">
-                          {user.name || user.preferred_username || '사용자'}
+                          {user.family_name && user.given_name 
+                            ? `${user.family_name}${user.given_name}` 
+                            : user.name || user.preferred_username || '사용자'
+                          }
                         </h2>
                         <p className="text-sm text-muted-foreground">
                           빅데이터 분석 플랫폼 사용자
@@ -326,44 +338,23 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">사용자 ID:</span>
-                          <span className="text-sm">{user.sub || '정보 없음'}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">사용자명:</span>
-                          <span className="text-sm">{user.preferred_username || '정보 없음'}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">이름:</span>
-                          <span className="text-sm">{user.name || '정보 없음'}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">이메일:</span>
-                          <span className="text-sm">{user.email || '정보 없음'}</span>
-                        </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">사용자 ID:</span>
+                        <span className="text-sm">{user.preferred_username || '정보 없음'}</span>
                       </div>
-                      <div className="space-y-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">현재 프로젝트:</span>
-                          <span className="text-sm">{currentProject?.name || '선택되지 않음'}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">권한:</span>
-                          <span className="text-sm">{currentProject?.roleLabel || '정보 없음'}</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">소속 프로젝트:</span>
-                          <span className="text-sm">{user.projects.length}개</span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">이메일 인증:</span>
-                          <span className={`text-sm ${user.email_verified ? 'text-green-600' : 'text-red-600'}`}>
-                            {user.email_verified ? '인증됨' : '미인증'}
-                          </span>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">사용자 이름:</span>
+                        <span className="text-sm">
+                          {user.family_name && user.given_name 
+                            ? `${user.family_name}${user.given_name}` 
+                            : user.name || '정보 없음'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">이메일:</span>
+                        <span className="text-sm">{user.email || '정보 없음'}</span>
                       </div>
                     </div>
                   </CardContent>

@@ -1,18 +1,15 @@
 import { useState } from 'react';
-import { User as UserIcon, LogOut, ChevronDown } from 'lucide-react';
+import { User as UserIcon, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Separator } from './ui/separator';
-import { AppUser, generateLDAPGroups } from '../types/user';
+import { AppUser } from '../types/user';
 
 interface UserInfoProps {
   user: AppUser;
-  onLogout: () => void;
 }
 
-export function UserInfo({ user, onLogout }: UserInfoProps) {
+export function UserInfo({ user }: UserInfoProps) {
   const [open, setOpen] = useState(false);
-  const ldapGroups = generateLDAPGroups(user);
 
   console.log('UserInfo rendering with user:', user); // 디버깅용
 
@@ -63,21 +60,6 @@ export function UserInfo({ user, onLogout }: UserInfoProps) {
                   <span className="text-sm text-muted-foreground">{user.email || '정보 없음'}</span>
                 </div>
               </div>
-
-              <Separator />
-
-              {/* 로그아웃 버튼 */}
-              <Button 
-                variant="destructive" 
-                onClick={() => {
-                  onLogout();
-                  setOpen(false);
-                }}
-                className="w-full"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                로그아웃
-              </Button>
             </CardContent>
           </Card>
         </div>
