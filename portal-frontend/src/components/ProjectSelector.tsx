@@ -62,7 +62,7 @@ export function ProjectSelector({ projects, currentProject, onProjectChange }: P
           
           {/* 드롭다운 메뉴 */}
           <div className="absolute top-full left-0 mt-1 w-[280px] bg-white border-2 border-gray-400 rounded-lg shadow-2xl z-50" style={{backgroundColor: '#ffffff', opacity: 1}}>
-            <div className="p-2 space-y-1" style={{backgroundColor: '#ffffff'}}
+            <div className="p-2 space-y-1" style={{backgroundColor: '#ffffff'}}>
               {projects.map((project) => (
                 <div
                   key={project.id}
