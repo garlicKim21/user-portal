@@ -38,7 +38,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     {
       id: 'jenkins',
       name: 'Jenkins',
-      logo: '/Jenkins.png',
+      logo: '/jenkins.png',
       url: 'https://jenkins.miribit.cloud'
     },
     {
@@ -389,7 +389,7 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
                         Secure Web Terminal - 안전한 터미널
                       </div>
                       <div className="flex items-center text-sm text-muted-foreground">
-                        <img src="/Jenkins.png" alt="Jenkins" className="h-4 w-4 mr-2" />
+                        <img src="/jenkins.png" alt="Jenkins" className="h-4 w-4 mr-2" />
                         Jenkins - CI/CD 파이프라인
                       </div>
                       <div className="flex items-center text-sm text-muted-foreground">
