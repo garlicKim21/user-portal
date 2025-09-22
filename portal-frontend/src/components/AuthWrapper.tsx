@@ -118,25 +118,46 @@ export function AuthWrapper() {
     }));
   };
 
-  // 로그아웃 핸들러
+  // 로그아웃 핸들러 (웹 콘솔 리소스 삭제 + 키클락 세션 로그아웃)
   const handleLogout = async () => {
     try {
       console.log('로그아웃 시작...');
       
-      // 로컬 스토리지에서 OIDC 사용자 정보 정리
+      // 1. 백엔드 리소스 정리 API 호출 (웹 콘솔 리소스 삭제)
+      if (authState.user?.access_token) {
+        try {
+          const { backendAuthService } = await import('../services/backendAuthService');
+          await backendAuthService.logout(authState.user.access_token);
+          console.log('웹 콘솔 리소스 정리 완료');
+        } catch (error) {
+          console.error('웹 콘솔 리소스 정리 실패:', error);
+          // 리소스 정리 실패해도 로그아웃은 계속 진행
+        }
+      }
+      
+      // 2. 로컬 스토리지에서 OIDC 사용자 정보 정리
       const oidcUserKey = 'oidc.user:https://keycloak.miribit.cloud/realms/sso-demo:frontend';
       localStorage.removeItem(oidcUserKey);
       sessionStorage.clear();
       
-      // 상태 초기화
+      // 3. 상태 초기화
       setAuthState({
         user: null,
         currentProject: null
       });
       
-      // 직접 Keycloak 로그아웃 URL로 리다이렉트 (확인 페이지 없이 바로 로그아웃)
-      const logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}&prompt=none`;
-      console.log('Keycloak 로그아웃 URL로 리다이렉트 (확인 페이지 생략):', logoutUrl);
+      // 4. 키클락 세션 로그아웃 (확인 페이지 없이 바로 로그아웃)
+      const idToken = user?.id_token;
+      let logoutUrl;
+      
+      if (idToken) {
+        // id_token_hint 사용으로 확인 페이지 생략
+        logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}&id_token_hint=${idToken}`;
+      } else {
+        logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}`;
+      }
+      
+      console.log('키클락 로그아웃 URL로 리다이렉트:', logoutUrl);
       window.location.href = logoutUrl;
       
     } catch (error) {
