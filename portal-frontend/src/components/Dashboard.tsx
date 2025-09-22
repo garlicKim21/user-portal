@@ -313,68 +313,39 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
               </CardContent>
             </Card>
           ) : (
-            <div className="flex items-center justify-center">
-              {/* 환영 메시지와 사용자 정보 통합 */}
-              <Card className="max-w-lg">
-                <CardHeader className="text-center">
-                  <CardTitle className="text-2xl font-bold">
-                    환영합니다! {user.family_name && user.given_name 
-                      ? `${user.family_name}${user.given_name}` 
-                      : user.name || user.preferred_username || '사용자'
-                    }님!
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* 사용자 정보 */}
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <span className="text-base font-bold text-gray-700">사용자 ID:</span>
-                      <div className="text-lg font-semibold">{user.preferred_username || '정보 없음'}</div>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-base font-bold text-gray-700">사용자 이름:</span>
-                      <div className="text-lg font-semibold">
-                        {user.family_name && user.given_name 
-                          ? `${user.family_name}${user.given_name}` 
-                          : user.name || '정보 없음'
-                        }
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-base font-bold text-gray-700">이메일:</span>
-                      <div className="text-lg font-semibold">{user.email || '정보 없음'}</div>
-                    </div>
+            {/* 환영 메시지와 사용자 정보 (전체 너비, 왼쪽 정렬) */}
+            <Card className="w-full">
+              <CardHeader>
+                <CardTitle className="text-2xl font-bold text-left">
+                  환영합니다! {user.family_name && user.given_name 
+                    ? `${user.family_name}${user.given_name}` 
+                    : user.name || user.preferred_username || '사용자'
+                  }님!
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* 사용자 정보 (같은 라인에 배치) */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-gray-700 min-w-[100px]">사용자 ID:</span>
+                    <span className="text-lg font-semibold">{user.preferred_username || '정보 없음'}</span>
                   </div>
-
-                  <hr className="border-gray-200" />
-
-                  {/* 도구 안내 */}
-                  <div>
-                    <p className="text-base text-gray-600 mb-4 font-medium">
-                      왼쪽 메뉴에서 원하시는 도구를 선택하여 시작하세요.
-                    </p>
-                    <div className="space-y-3">
-                      <div className="flex items-center text-base text-gray-600">
-                        <img src="/Grafana_logo.svg.png" alt="Grafana" className="h-5 w-5 mr-3" />
-                        <span className="font-medium">Grafana - 데이터 시각화</span>
-                      </div>
-                      <div className="flex items-center text-base text-gray-600">
-                        <img src="/Kubernetes.png" alt="Terminal" className="h-5 w-5 mr-3" />
-                        <span className="font-medium">Secure Web Terminal - 안전한 터미널</span>
-                      </div>
-                      <div className="flex items-center text-base text-gray-600">
-                        <img src="/jenkins.png" alt="Jenkins" className="h-5 w-5 mr-3" />
-                        <span className="font-medium">Jenkins - CI/CD 파이프라인</span>
-                      </div>
-                      <div className="flex items-center text-base text-gray-600">
-                        <img src="/Argo CD.png" alt="ArgoCD" className="h-5 w-5 mr-3" />
-                        <span className="font-medium">ArgoCD - GitOps 배포</span>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-gray-700 min-w-[100px]">사용자 이름:</span>
+                    <span className="text-lg font-semibold">
+                      {user.family_name && user.given_name 
+                        ? `${user.family_name}${user.given_name}` 
+                        : user.name || '정보 없음'
+                      }
+                    </span>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-lg font-bold text-gray-700 min-w-[100px]">이메일:</span>
+                    <span className="text-lg font-semibold">{user.email || '정보 없음'}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
         </main>
       </div>
