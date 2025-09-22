@@ -41,9 +41,20 @@ export function AuthWrapper() {
       localStorage.removeItem(oidcUserKey);
       sessionStorage.clear();
       
-      // 직접 Keycloak 로그아웃 URL로 리다이렉트 (확인 페이지 없이 바로 로그아웃)
-      const logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}&prompt=none`;
-      console.log('Keycloak 로그아웃 URL로 리다이렉트 (확인 페이지 생략):', logoutUrl);
+      // Keycloak 로그아웃 URL 생성 (여러 방법 시도)
+      const idToken = user?.id_token;
+      let logoutUrl;
+      
+      if (idToken) {
+        // 방법 1: id_token_hint 사용 (가장 확실한 방법)
+        logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}&id_token_hint=${idToken}`;
+        console.log('id_token_hint를 사용한 로그아웃 URL:', logoutUrl);
+      } else {
+        // 방법 2: 일반 로그아웃
+        logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}`;
+        console.log('일반 로그아웃 URL:', logoutUrl);
+      }
+      
       window.location.href = logoutUrl;
       
     } catch (error) {
