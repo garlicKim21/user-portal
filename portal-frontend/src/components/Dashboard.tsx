@@ -313,8 +313,9 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
               </CardContent>
             </Card>
           ) : (
-            {/* 환영 메시지와 사용자 정보 (전체 너비, 왼쪽 정렬) */}
-            <Card className="w-full">
+            <>
+              {/* 환영 메시지와 사용자 정보 (전체 너비, 왼쪽 정렬) */}
+              <Card className="w-full">
               <CardHeader>
                 <CardTitle className="text-2xl font-bold text-left">
                   환영합니다! {user.family_name && user.given_name 
@@ -345,7 +346,8 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
                   </div>
                 </div>
               </CardContent>
-            </Card>
+              </Card>
+            </>
           )}
         </main>
       </div>
