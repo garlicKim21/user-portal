@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, ChevronsUpDown, Building2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn } from './ui/utils';
 import { Button } from './ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
