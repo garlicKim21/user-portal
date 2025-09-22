@@ -4,8 +4,7 @@ import { cn } from './ui/utils';
 import { Button } from './ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Badge } from './ui/badge';
-import { UserProject, getRoleBadgeVariant } from '../types/user';
+import { UserProject } from '../types/user';
 
 interface ProjectSelectorProps {
   projects: UserProject[];
@@ -30,9 +29,9 @@ export function ProjectSelector({ projects, currentProject, onProjectChange }: P
             {currentProject ? (
               <div className="flex items-center gap-2">
                 <span>{currentProject.name}</span>
-                <Badge variant={getRoleBadgeVariant(currentProject.role)} className="text-xs">
+                <span className="text-xs px-2 py-1 bg-gray-200 rounded">
                   {currentProject.roleLabel}
-                </Badge>
+                </span>
               </div>
             ) : (
               "프로젝트를 선택하세요..."
@@ -62,9 +61,9 @@ export function ProjectSelector({ projects, currentProject, onProjectChange }: P
                       <span>{project.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={getRoleBadgeVariant(project.role)} className="text-xs">
+                      <span className="text-xs px-2 py-1 bg-gray-200 rounded">
                         {project.roleLabel}
-                      </Badge>
+                      </span>
                       <Check
                         className={cn(
                           "ml-auto h-4 w-4",

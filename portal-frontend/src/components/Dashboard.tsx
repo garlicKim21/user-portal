@@ -10,7 +10,7 @@ import {
 import { backendAuthService } from '../services/backendAuthService';
 import { ProjectSelector } from './ProjectSelector';
 import { UserInfo } from './UserInfo';
-import { AppUser, UserProject, getRoleBadgeVariant } from '../types/user';
+import { AppUser, UserProject } from '../types/user';
 
 interface DashboardProps {
   user: AppUser;
@@ -222,9 +222,9 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
               <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md">
                 <Building2 className="h-4 w-4" />
                 <span className="text-sm font-medium">{currentProject?.name}</span>
-                <Badge variant={getRoleBadgeVariant(currentProject?.role || 'viewer')} className="text-xs">
+                <span className="text-xs px-2 py-1 bg-gray-200 rounded">
                   {currentProject?.roleLabel}
-                </Badge>
+                </span>
               </div>
             )}
             <UserInfo 
