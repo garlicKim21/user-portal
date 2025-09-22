@@ -23,17 +23,17 @@ export function AuthWrapper() {
       
       // 실제 OIDC 사용자 정보를 AppUser 타입으로 변환
       const appUserData: AppUser = {
-        // OIDC 기본 정보
+        // OIDC 기본 정보 - 실제 필드명 사용
         sub: user.sub || '',
-        preferred_username: user.preferred_username || user.sub || '',
-        name: user.name || (user.given_name && user.family_name ? `${user.family_name}${user.given_name}` : user.preferred_username) || 'Unknown User',
-        email: user.email,
-        given_name: user.given_name,
-        family_name: user.family_name,
-        email_verified: user.email_verified,
-        auth_time: user.auth_time,
-        access_token: user.access_token,
-        id_token: user.id_token,
+        preferred_username: user.preferred_username || '',
+        name: user.name || 'Unknown User',
+        email: user.email || '',
+        given_name: user.given_name || '',
+        family_name: user.family_name || '',
+        email_verified: user.email_verified || false,
+        auth_time: user.auth_time || 0,
+        access_token: user.access_token || '',
+        id_token: user.id_token || '',
         
         // 앱에서 관리하는 프로젝트 정보 (실제 환경에서는 LDAP API에서 가져옴)
         // 현재는 사용자명을 기반으로 프로젝트를 동적으로 생성
