@@ -20,15 +20,18 @@ export function UserInfo({ user, onLogout }: UserInfoProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="ghost" className="flex items-center gap-2">
-            <UserIcon className="h-4 w-4" />
-            <span>{user.name || 'Unknown User'}</span>
-            <ChevronDown className="h-3 w-3 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-80" align="end">
+      <Button 
+        variant="ghost" 
+        className="flex items-center gap-2"
+        onClick={() => setOpen(!open)}
+      >
+        <UserIcon className="h-4 w-4" />
+        <span>{user.name || 'Unknown User'}</span>
+        <ChevronDown className="h-3 w-3 opacity-50" />
+      </Button>
+      
+      {open && (
+        <div className="absolute right-4 top-16 w-80 bg-white border rounded-lg shadow-lg z-50">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -108,8 +111,8 @@ export function UserInfo({ user, onLogout }: UserInfoProps) {
               </Button>
             </CardContent>
           </Card>
-        </PopoverContent>
-      </Popover>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,6 +6,52 @@ import { Callback } from './Callback';
 import { useLocation } from 'react-router-dom';
 import { AppUser, UserProject, AuthState, mockProjects } from '../types/user';
 
+// Keycloak groups에서 프로젝트 정보 파싱 함수
+function parseUserProjectsFromGroups(groups: string[] | undefined): UserProject[] {
+  if (!groups || groups.length === 0) {
+    return [];
+  }
+
+  const projects: UserProject[] = [];
+  
+  groups.forEach(group => {
+    // /dataops/{project}/{role} 형식 파싱
+    const match = group.match(/^\/dataops\/([^\/]+)\/([^\/]+)$/);
+    if (match) {
+      const [, projectId, role] = match;
+      
+      // 프로젝트 ID를 기반으로 프로젝트명 매핑
+      const projectName = getProjectName(projectId);
+      const roleLabel = getRoleLabel(role);
+      
+      projects.push({
+        id: projectId,
+        name: projectName,
+        role: role as 'dev' | 'adm' | 'viewer',
+        roleLabel: roleLabel
+      });
+    }
+  });
+
+  return projects;
+}
+
+// 프로젝트 ID를 프로젝트명으로 매핑 (동적 생성)
+function getProjectName(projectId: string): string {
+  // 프로젝트 ID를 대문자로 변환하고 '프로젝트' 추가
+  return `${projectId.toUpperCase()} 프로젝트`;
+}
+
+// 역할 코드를 역할명으로 매핑
+function getRoleLabel(role: string): string {
+  const roleLabels: Record<string, string> = {
+    'dev': '개발자',
+    'adm': '관리자',
+    'viewer': '조회자'
+  };
+  return roleLabels[role] || role;
+}
+
 export function AuthWrapper() {
   const { signinRedirect, isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
@@ -35,13 +81,9 @@ export function AuthWrapper() {
         access_token: user.access_token || '',
         id_token: user.id_token || '',
         
-        // 앱에서 관리하는 프로젝트 정보 (실제 환경에서는 LDAP API에서 가져옴)
-        // 현재는 사용자명을 기반으로 프로젝트를 동적으로 생성
-        projects: user.preferred_username?.includes('eds') 
-          ? [{ id: 'eds', name: 'EDS 프로젝트', role: user.preferred_username.includes('adm') ? 'adm' : 'dev', roleLabel: user.preferred_username.includes('adm') ? '관리자' : '개발자' }]
-          : user.preferred_username?.includes('fdc')
-          ? [{ id: 'fdc', name: 'FDC 프로젝트', role: user.preferred_username.includes('adm') ? 'adm' : 'dev', roleLabel: user.preferred_username.includes('adm') ? '관리자' : '개발자' }]
-          : mockProjects
+        // 앱에서 관리하는 프로젝트 정보
+        // 실제 환경에서는 Keycloak groups 필드에서 파싱하거나 LDAP API 호출
+        projects: parseUserProjectsFromGroups(user.groups) || mockProjects
       };
       
       console.log('App User Data:', appUserData); // 디버깅용
