@@ -4,12 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { 
   Menu,
   X,
-  AlertCircle
+  AlertCircle,
+  Building2
 } from 'lucide-react';
 import { backendAuthService } from '../services/backendAuthService';
 import { ProjectSelector } from './ProjectSelector';
 import { UserInfo } from './UserInfo';
-import { User as AppUser, UserProject } from '../types/user';
+import { AppUser, UserProject, getRoleBadgeVariant } from '../types/user';
 
 interface DashboardProps {
   user: AppUser;
@@ -210,11 +211,22 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <ProjectSelector 
-              projects={user.projects}
-              currentProject={currentProject}
-              onProjectChange={onProjectChange}
-            />
+            {user.projects.length > 1 && (
+              <ProjectSelector 
+                projects={user.projects}
+                currentProject={currentProject}
+                onProjectChange={onProjectChange}
+              />
+            )}
+            {user.projects.length === 1 && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-md">
+                <Building2 className="h-4 w-4" />
+                <span className="text-sm font-medium">{currentProject?.name}</span>
+                <Badge variant={getRoleBadgeVariant(currentProject?.role || 'viewer')} className="text-xs">
+                  {currentProject?.roleLabel}
+                </Badge>
+              </div>
+            )}
             <UserInfo 
               user={user}
               onLogout={onLogout}
@@ -318,15 +330,15 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-muted-foreground">사용자 ID:</span>
-                          <span className="text-sm">{user.sub}</span>
+                          <span className="text-sm">{user.sub || '정보 없음'}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-muted-foreground">사용자명:</span>
-                          <span className="text-sm">{user.preferred_username}</span>
+                          <span className="text-sm">{user.preferred_username || '정보 없음'}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-muted-foreground">이름:</span>
-                          <span className="text-sm">{user.name}</span>
+                          <span className="text-sm">{user.name || '정보 없음'}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-muted-foreground">이메일:</span>

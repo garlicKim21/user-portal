@@ -24,7 +24,7 @@ export function AuthWrapper() {
         // OIDC 기본 정보
         sub: user.sub || '',
         preferred_username: user.preferred_username || user.sub || '',
-        name: user.name || user.preferred_username || 'Unknown User',
+        name: user.name || (user.given_name && user.family_name ? `${user.family_name}${user.given_name}` : user.preferred_username) || 'Unknown User',
         email: user.email,
         given_name: user.given_name,
         family_name: user.family_name,
@@ -34,7 +34,12 @@ export function AuthWrapper() {
         id_token: user.id_token,
         
         // 앱에서 관리하는 프로젝트 정보 (실제 환경에서는 LDAP API에서 가져옴)
-        projects: mockProjects
+        // 현재는 사용자명을 기반으로 프로젝트를 동적으로 생성
+        projects: user.preferred_username?.includes('eds') 
+          ? [{ id: 'eds', name: 'EDS 프로젝트', role: user.preferred_username.includes('adm') ? 'adm' : 'dev', roleLabel: user.preferred_username.includes('adm') ? '관리자' : '개발자' }]
+          : user.preferred_username?.includes('fdc')
+          ? [{ id: 'fdc', name: 'FDC 프로젝트', role: user.preferred_username.includes('adm') ? 'adm' : 'dev', roleLabel: user.preferred_username.includes('adm') ? '관리자' : '개발자' }]
+          : mockProjects
       };
       
       setAuthState({

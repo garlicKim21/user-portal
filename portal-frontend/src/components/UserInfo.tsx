@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, LogOut, ChevronDown } from 'lucide-react';
+import { User as UserIcon, LogOut, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { Badge } from './ui/badge';
@@ -20,7 +20,7 @@ export function UserInfo({ user, onLogout }: UserInfoProps) {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="ghost" className="flex items-center gap-2">
-          <User className="h-4 w-4" />
+          <UserIcon className="h-4 w-4" />
           <span>{user.name}</span>
           <ChevronDown className="h-3 w-3 opacity-50" />
         </Button>
@@ -29,7 +29,7 @@ export function UserInfo({ user, onLogout }: UserInfoProps) {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
-              <User className="h-5 w-5" />
+              <UserIcon className="h-5 w-5" />
               사용자 정보
             </CardTitle>
           </CardHeader>
