@@ -71,7 +71,7 @@ export function ProjectSelector({ projects, currentProject, onProjectChange }: P
                     setOpen(false);
                   }}
                   className={`p-3 rounded cursor-pointer transition-colors border ${
-                    currentProject?.id === project.id ? 'bg-blue-100 border-blue-400' : 'bg-white border-transparent hover:bg-gray-100 hover:border-gray-300'
+                    currentProject?.id === project.id ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-200 hover:bg-gray-100 hover:border-gray-400'
                   }`}
                   style={{backgroundColor: currentProject?.id === project.id ? '#dbeafe' : '#ffffff'}}
                 >
