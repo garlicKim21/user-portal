@@ -19,6 +19,8 @@ export function AuthWrapper() {
   // 사용자 로그인 시 실제 OIDC 토큰 정보와 프로젝트 데이터 결합
   useEffect(() => {
     if (isAuthenticated && user && !authState.user) {
+      console.log('OIDC User Info:', user); // 디버깅용
+      
       // 실제 OIDC 사용자 정보를 AppUser 타입으로 변환
       const appUserData: AppUser = {
         // OIDC 기본 정보
@@ -41,6 +43,8 @@ export function AuthWrapper() {
           ? [{ id: 'fdc', name: 'FDC 프로젝트', role: user.preferred_username.includes('adm') ? 'adm' : 'dev', roleLabel: user.preferred_username.includes('adm') ? '관리자' : '개발자' }]
           : mockProjects
       };
+      
+      console.log('App User Data:', appUserData); // 디버깅용
       
       setAuthState({
         user: appUserData,
