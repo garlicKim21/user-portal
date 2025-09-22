@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { User as UserIcon, LogOut, ChevronDown } from 'lucide-react';
 import { Button } from './ui/button';
-import { Badge } from './ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Separator } from './ui/separator';
-import { AppUser, generateLDAPGroups, getRoleBadgeVariant } from '../types/user';
+import { AppUser, generateLDAPGroups } from '../types/user';
 
 interface UserInfoProps {
   user: AppUser;
@@ -72,9 +71,9 @@ export function UserInfo({ user, onLogout }: UserInfoProps) {
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{project.name}</span>
                       </div>
-                      <Badge variant={getRoleBadgeVariant(project.role)} className="text-xs">
+                      <span className="text-xs px-2 py-1 bg-gray-200 rounded">
                         {project.roleLabel}
-                      </Badge>
+                      </span>
                     </div>
                   ))}
                 </div>

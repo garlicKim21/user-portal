@@ -8,31 +8,42 @@ import { AppUser, UserProject, AuthState, mockProjects } from '../types/user';
 
 // Keycloak groups에서 프로젝트 정보 파싱 함수
 function parseUserProjectsFromGroups(groups: string[] | undefined): UserProject[] {
+  console.log('parseUserProjectsFromGroups called with groups:', groups);
+  
   if (!groups || groups.length === 0) {
+    console.log('No groups found, returning empty array');
     return [];
   }
 
   const projects: UserProject[] = [];
   
   groups.forEach(group => {
+    console.log('Processing group:', group);
     // /dataops/{project}/{role} 형식 파싱
     const match = group.match(/^\/dataops\/([^\/]+)\/([^\/]+)$/);
     if (match) {
       const [, projectId, role] = match;
+      console.log('Parsed project:', projectId, 'role:', role);
       
       // 프로젝트 ID를 기반으로 프로젝트명 매핑
       const projectName = getProjectName(projectId);
       const roleLabel = getRoleLabel(role);
       
-      projects.push({
+      const project = {
         id: projectId,
         name: projectName,
         role: role as 'dev' | 'adm' | 'viewer',
         roleLabel: roleLabel
-      });
+      };
+      
+      console.log('Created project:', project);
+      projects.push(project);
+    } else {
+      console.log('Group does not match pattern:', group);
     }
   });
 
+  console.log('Final projects array:', projects);
   return projects;
 }
 
@@ -67,7 +78,8 @@ export function AuthWrapper() {
     if (isAuthenticated && user && !authState.user) {
       console.log('OIDC User Info:', user); // 디버깅용
       console.log('OIDC Profile:', user.profile); // 디버깅용
-      console.log('OIDC Groups:', user.profile?.groups); // 디버깅용
+      console.log('OIDC Groups from profile:', user.profile?.groups); // 디버깅용
+      console.log('OIDC Groups from user:', (user as any)?.groups); // 디버깅용
       
       // 실제 OIDC 사용자 정보를 AppUser 타입으로 변환
       const profile = user.profile || {};
