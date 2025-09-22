@@ -66,24 +66,26 @@ export function AuthWrapper() {
   useEffect(() => {
     if (isAuthenticated && user && !authState.user) {
       console.log('OIDC User Info:', user); // 디버깅용
+      console.log('OIDC Profile:', user.profile); // 디버깅용
+      console.log('OIDC Groups:', user.profile?.groups); // 디버깅용
       
       // 실제 OIDC 사용자 정보를 AppUser 타입으로 변환
       const appUserData: AppUser = {
-        // OIDC 기본 정보 - 실제 필드명 사용
-        sub: user.sub || '',
-        preferred_username: user.preferred_username || '',
-        name: user.name || 'Unknown User',
-        email: user.email || '',
-        given_name: user.given_name || '',
-        family_name: user.family_name || '',
-        email_verified: user.email_verified || false,
-        auth_time: user.auth_time || 0,
+        // OIDC 기본 정보 - profile 객체에서 가져오기
+        sub: user.profile?.sub || user.sub || '',
+        preferred_username: user.profile?.preferred_username || user.preferred_username || '',
+        name: user.profile?.name || user.name || 'Unknown User',
+        email: user.profile?.email || user.email || '',
+        given_name: user.profile?.given_name || user.given_name || '',
+        family_name: user.profile?.family_name || user.family_name || '',
+        email_verified: user.profile?.email_verified || user.email_verified || false,
+        auth_time: user.profile?.auth_time || user.auth_time || 0,
         access_token: user.access_token || '',
         id_token: user.id_token || '',
         
         // 앱에서 관리하는 프로젝트 정보
         // 실제 환경에서는 Keycloak groups 필드에서 파싱하거나 LDAP API 호출
-        projects: parseUserProjectsFromGroups(user.groups) || mockProjects
+        projects: parseUserProjectsFromGroups(user.profile?.groups) || mockProjects
       };
       
       console.log('App User Data:', appUserData); // 디버깅용
