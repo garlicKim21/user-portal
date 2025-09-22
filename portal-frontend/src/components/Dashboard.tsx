@@ -2,19 +2,23 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { 
-  LogOut,
   Menu,
   X,
   AlertCircle
 } from 'lucide-react';
 import { backendAuthService } from '../services/backendAuthService';
+import { ProjectSelector } from './ProjectSelector';
+import { UserInfo } from './UserInfo';
+import { User as AppUser, UserProject } from '../types/user';
 
 interface DashboardProps {
+  user: AppUser;
+  currentProject: UserProject | null;
+  onProjectChange: (project: UserProject) => void;
   onLogout: () => void;
-  user?: any; // OIDC 사용자 정보
 }
 
-export function Dashboard({ onLogout, user }: DashboardProps) {
+export function Dashboard({ user, currentProject, onProjectChange, onLogout }: DashboardProps) {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isTitleClicked, setIsTitleClicked] = useState(false);
@@ -100,32 +104,6 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
     setTimeout(() => setIsTitleClicked(false), 200);
   };
 
-  const handleLogout = async () => {
-    try {
-      setIsLoading(true);
-      
-      // 1. 백엔드 리소스 정리 API 호출 (K8s 리소스 정리만)
-      if (user?.access_token) {
-        try {
-          await backendAuthService.logout(user.access_token);
-          console.log('Backend resource cleanup completed');
-        } catch (error) {
-          console.error('Backend cleanup failed:', error);
-          // 리소스 정리 실패해도 로그아웃은 계속 진행
-        }
-      }
-      
-      // 2. 프론트엔드 로그아웃 처리 (react-oidc-context 사용)
-      onLogout();
-      
-    } catch (error) {
-      console.error('Logout error:', error);
-      // 에러가 있어도 프론트엔드 로그아웃은 진행
-      onLogout();
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   return (
     <div className="h-screen flex bg-background">
@@ -201,17 +179,14 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
           </nav>
         </div>
 
-        {/* Logout Button */}
-        <div className="p-2 border-t border-sidebar-border">
-          <Button
-            variant="ghost"
-            className={`w-full justify-start ${sidebarOpen ? 'px-4' : 'px-2'} text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground`}
-            onClick={handleLogout}
-          >
-            <LogOut className={`h-5 w-5 ${sidebarOpen ? 'mr-3' : ''}`} />
-            {sidebarOpen && <span>로그아웃</span>}
-          </Button>
-        </div>
+        {/* Current Project Info */}
+        {sidebarOpen && currentProject && (
+          <div className="p-4 border-t border-sidebar-border">
+            <div className="text-xs text-sidebar-foreground/70 mb-1">현재 프로젝트</div>
+            <div className="text-sm font-medium text-sidebar-foreground">{currentProject.name}</div>
+            <div className="text-xs text-sidebar-foreground/70">{currentProject.roleLabel}</div>
+          </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -231,8 +206,19 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
             />
             <div>
               <h1>대시보드</h1>
-              <p className="text-muted-foreground">개발자 및 빅데이터 분석가를 위한 포털</p>
+              <p className="text-muted-foreground">SK hynix 개발자 및 빅데이터 분석가를 위한 포털</p>
             </div>
+          </div>
+          <div className="flex items-center gap-4">
+            <ProjectSelector 
+              projects={user.projects}
+              currentProject={currentProject}
+              onProjectChange={onProjectChange}
+            />
+            <UserInfo 
+              user={user}
+              onLogout={onLogout}
+            />
           </div>
         </header>
 
@@ -331,33 +317,39 @@ export function Dashboard({ onLogout, user }: DashboardProps) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">이메일:</span>
-                          <span className="text-sm">{user.email || '정보 없음'}</span>
+                          <span className="text-sm font-medium text-muted-foreground">사용자 ID:</span>
+                          <span className="text-sm">{user.sub}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-muted-foreground">사용자명:</span>
-                          <span className="text-sm">{user.preferred_username || '정보 없음'}</span>
+                          <span className="text-sm">{user.preferred_username}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-muted-foreground">이름:</span>
-                          <span className="text-sm">{user.given_name || user.name || '정보 없음'}</span>
+                          <span className="text-sm">{user.name}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-muted-foreground">이메일:</span>
+                          <span className="text-sm">{user.email || '정보 없음'}</span>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">성:</span>
-                          <span className="text-sm">{user.family_name || '정보 없음'}</span>
+                          <span className="text-sm font-medium text-muted-foreground">현재 프로젝트:</span>
+                          <span className="text-sm">{currentProject?.name || '선택되지 않음'}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-muted-foreground">권한:</span>
+                          <span className="text-sm">{currentProject?.roleLabel || '정보 없음'}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-muted-foreground">소속 프로젝트:</span>
+                          <span className="text-sm">{user.projects.length}개</span>
                         </div>
                         <div className="flex items-center space-x-2">
                           <span className="text-sm font-medium text-muted-foreground">이메일 인증:</span>
                           <span className={`text-sm ${user.email_verified ? 'text-green-600' : 'text-red-600'}`}>
                             {user.email_verified ? '인증됨' : '미인증'}
-                          </span>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-muted-foreground">로그인 시간:</span>
-                          <span className="text-sm">
-                            {user.auth_time ? new Date(user.auth_time * 1000).toLocaleString('ko-KR') : '정보 없음'}
                           </span>
                         </div>
                       </div>
