@@ -126,7 +126,7 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
                   alt="SK하이닉스" 
                   className="h-8 w-auto"
                 />
-                <h2 className="text-sidebar-foreground">빅데이터 분석 플랫폼 사용자 포털</h2>
+                <h2 className="text-sidebar-foreground">빅데이터 분석 플랫폼</h2>
               </div>
             )}
             {!sidebarOpen && (
@@ -196,20 +196,12 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
         {/* Top Bar */}
         <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between">
           <div 
-            className={`flex items-center space-x-4 cursor-pointer hover:opacity-80 transition-all duration-200 ${
+            className={`cursor-pointer hover:opacity-80 transition-all duration-200 ${
               isTitleClicked ? 'scale-95 opacity-70' : 'hover:scale-105'
             }`}
             onClick={handleTitleClick}
           >
-            <img 
-              src="/skhynix.png" 
-              alt="SK하이닉스" 
-              className="h-10 w-auto"
-            />
-            <div>
-              <h1>대시보드</h1>
-              <p className="text-muted-foreground">SK hynix 개발자 및 빅데이터 분석가를 위한 포털</p>
-            </div>
+            <h1 className="text-xl font-bold">User Portal Dashboard</h1>
           </div>
           <div className="flex items-center gap-4">
             {user.projects.length > 1 && (
