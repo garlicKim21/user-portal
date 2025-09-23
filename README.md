@@ -1,20 +1,20 @@
-# User Portal - Kubernetes Web Console
+# Kubernetes 기반 개발자 및 데이터 분석가 사용자 포털
 
-OIDC와 동적 Pod를 이용한 쿠버네티스 웹 콘솔 포털 프로젝트입니다.
+OIDC/LDAP 인증 기반의 통합 개발 및 분석 도구 포털입니다.
 
 ## 📋 프로젝트 개요
 
-이 프로젝트는 사용자가 웹 포털을 통해 인증하고, 버튼 클릭 한 번으로 자신만의 격리된 웹 기반 쿠버네티스 CLI(kubectl) 환경을 동적으로 제공받는 시스템을 구축하는 것이 목표입니다.
+Kubernetes 기반 개발자 및 데이터 분석가를 위한 통합 웹 포털로, Keycloak/LDAP 인증을 통해 다양한 개발 및 분석 도구들에 SSO(Single Sign-On)로 접근할 수 있는 시스템입니다.
 
 ### 🎯 주요 기능
 
-- **OIDC 기반 인증**: Keycloak을 통한 안전한 사용자 인증
-- **동적 웹 콘솔 생성**: 사용자별 격리된 웹 터미널 환경 제공
-- **다중 클러스터 지원**: A 클러스터에서 B 클러스터 제어
-- **Secret 기반 보안**: 민감한 정보를 Kubernetes Secret으로 관리
-- **모던 UI**: Glassmorphism 디자인의 전문적인 웹 인터페이스
-- **개인화된 터미널**: 사용자별 맞춤형 웹 터미널 정보 표시
-- **명령어 히스토리 지속성**: 사용자별 명령어 히스토리 영구 보존
+- **🔐 OIDC/LDAP 기반 통합 인증**: Keycloak을 통한 SSO 및 LDAP 그룹 기반 권한 관리
+- **📊 통합 대시보드**: Grafana, Jenkins, ArgoCD, Secure Web Terminal 통합 접근
+- **👥 프로젝트 기반 권한 관리**: LDAP 그룹 구조 `/dataops/{project}/{role}` 기반 다중 프로젝트 지원
+- **🖥️ 동적 웹 콘솔**: 사용자별 격리된 Kubernetes 웹 터미널 환경
+- **🎨 모던 React UI**: shadcn/ui 기반 반응형 대시보드
+- **🔄 자동 로그아웃**: 웹 콘솔 리소스 정리 + Keycloak 세션 관리
+- **📱 반응형 디자인**: 데스크톱 및 모바일 환경 지원
 
 ## 🏗️ 시스템 아키텍처
 
@@ -81,16 +81,17 @@ sequenceDiagram
 
 ### 사용자 흐름
 
-1. 사용자가 웹 브라우저로 포털에 접속
-2. "Login" 버튼 클릭 → Keycloak 로그인 페이지로 리디렉션
-3. LDAP 계정으로 로그인
-4. 인증 성공 후 포털로 돌아와 사용자 정보 표시
-5. "Open Web Terminal" 버튼 클릭
-6. 백엔드에서 Secret에서 CA 인증서와 클러스터 정보 조회
-7. 새 브라우저 탭에서 웹 기반 터미널 열림
-8. 별도 로그인 없이 kubectl 명령어 사용 가능
-9. **개인화된 터미널 정보 표시** (사용자 ID, 네임스페이스, 권한)
-10. **명령어 히스토리 자동 저장 및 복원**
+1. **포털 접속**: `https://your-portal-domain.com` 접속
+2. **SSO 로그인**: Keycloak을 통한 LDAP 계정 인증
+3. **대시보드 표시**: 사용자 정보 및 프로젝트 권한 표시
+4. **프로젝트 선택**: 다중 프로젝트 소속 시 드롭다운에서 선택
+5. **도구 접근**: 
+   - **Grafana**: 데이터 시각화 (자동 SSO)
+   - **Jenkins**: CI/CD 파이프라인 (자동 SSO)
+   - **ArgoCD**: GitOps 배포 (자동 SSO)
+   - **Secure Web Terminal**: 격리된 Kubernetes CLI 환경
+6. **웹 콘솔 실행**: 사용자별 동적 Pod 생성 및 새 탭에서 터미널 실행
+7. **자동 로그아웃**: 웹 콘솔 리소스 정리 + Keycloak 세션 종료
 
 ## 🛠️ 기술 스택
 
@@ -104,9 +105,12 @@ sequenceDiagram
 - **컨테이너**: Docker (크로스 플랫폼 빌드)
 
 ### Frontend
+- **프레임워크**: React 18 + TypeScript
 - **빌드 도구**: Vite
-- **언어**: Vanilla JavaScript
-- **스타일**: CSS3 (Glassmorphism)
+- **UI 라이브러리**: shadcn/ui + Radix UI
+- **인증**: react-oidc-context
+- **스타일**: Tailwind CSS
+- **아이콘**: Lucide React
 - **패키지 관리**: npm
 
 ### 인프라
@@ -121,36 +125,48 @@ sequenceDiagram
 
 ```
 user-portal/
-├── portal-backend/           # 백엔드 애플리케이션
+├── console-backend/          # 백엔드 애플리케이션 (Go)
 │   ├── main.go              # 메인 애플리케이션 진입점
 │   ├── internal/            # 내부 패키지
 │   │   ├── config/          # 설정 관리
 │   │   ├── auth/            # OIDC 인증 로직 + JWT 관리
 │   │   ├── kubernetes/      # K8s 클라이언트 + 리소스 생성
-│   │   ├── handlers/        # API 핸들러
-│   │   ├── middleware/      # 미들웨어
-│   │   ├── models/          # 데이터 모델
-│   │   ├── logger/          # 로깅
-│   │   └── utils/           # 유틸리티
+│   │   ├── handlers/        # API 핸들러 (인증, 웹콘솔)
+│   │   ├── middleware/      # 미들웨어 (로깅)
+│   │   ├── models/          # 데이터 모델 (에러, 세션)
+│   │   ├── logger/          # 구조화된 로깅
+│   │   └── utils/           # 응답 유틸리티
 │   ├── Dockerfile           # Docker 이미지 빌드
 │   ├── env.example          # 환경 변수 예시
 │   ├── CONFIG.md            # 설정 가이드
-│   ├── OIDC_SETUP.md        # OIDC 설정 가이드
 │   └── README.md            # 백엔드 상세 문서
-├── portal-frontend/         # 프론트엔드 애플리케이션
+├── portal-frontend/         # 프론트엔드 애플리케이션 (React)
 │   ├── src/                 # 소스 코드
-│   │   └── main.js          # 메인 JavaScript
-│   ├── index.html           # 메인 HTML
-│   ├── package.json         # npm 의존성
+│   │   ├── components/      # React 컴포넌트
+│   │   │   ├── ui/          # shadcn/ui 컴포넌트
+│   │   │   ├── Dashboard.tsx     # 메인 대시보드
+│   │   │   ├── AuthWrapper.tsx   # OIDC 인증 래퍼
+│   │   │   ├── ProjectSelector.tsx # 프로젝트 선택기
+│   │   │   └── UserInfo.tsx      # 사용자 정보 표시
+│   │   ├── services/        # API 서비스
+│   │   ├── types/           # TypeScript 타입 정의
+│   │   ├── config/          # OIDC 설정
+│   │   └── main.tsx         # React 진입점
+│   ├── package.json         # npm 의존성 (React, TypeScript, shadcn/ui)
+│   ├── tailwind.config.js   # Tailwind CSS 설정
+│   ├── tsconfig.json        # TypeScript 설정
 │   └── Dockerfile           # Docker 이미지 빌드
-├── deployment/              # 배포 관련 파일
-│   ├── user-portal-backend.yaml    # 백엔드 배포
-│   ├── user-portal-secrets.yaml    # Secret 예시
+├── deployment/              # Kubernetes 배포 파일
+│   ├── user-portal-backend.yaml     # 백엔드 배포
+│   ├── user-portal-frontend.yaml    # 프론트엔드 배포
+│   ├── user-portal-ingress.yaml     # Ingress 설정
+│   ├── user-portal-secrets.yaml     # Secret 예시
+│   ├── portal-backend-rbac.yaml     # 백엔드 RBAC
 │   └── README.md            # 배포 가이드
 ├── web-terminal/            # 웹 터미널 컴포넌트
 │   ├── Dockerfile           # 웹 터미널 이미지
 │   ├── bashrc_template      # 개인화된 bashrc 템플릿
-│   └── concept.md           # 개념 문서
+│   └── README.md            # 웹 터미널 가이드
 └── README.md               # 프로젝트 전체 문서 (현재 파일)
 ```
 
@@ -168,14 +184,14 @@ user-portal/
 ### 2. 프로젝트 클론
 
 ```bash
-git clone git@github.com:garlicKim21/user-portal.git
+git clone https://github.com/your-org/user-portal.git
 cd user-portal
 ```
 
 ### 3. 백엔드 설정
 
 ```bash
-cd portal-backend
+cd console-backend
 
 # 의존성 설치
 go mod download
@@ -216,26 +232,26 @@ kubectl apply -f deployment/user-portal-backend.yaml
 
 ```bash
 # OIDC 설정
-OIDC_CLIENT_ID=portal-app
+OIDC_CLIENT_ID=frontend
 OIDC_CLIENT_SECRET=your-client-secret
-OIDC_ISSUER_URL=https://keycloak.basphere.dev/realms/basphere
-OIDC_REDIRECT_URL=https://portal.basphere.dev/api/callback
+OIDC_ISSUER_URL=https://your-keycloak-domain.com/realms/your-realm
+OIDC_REDIRECT_URL=https://your-portal-domain.com/callback
 
 # 서버 설정
 PORT=8080
 GIN_MODE=release
-ALLOWED_ORIGINS=https://portal.basphere.dev
+ALLOWED_ORIGINS=https://your-portal-domain.com
 
 # JWT 설정
 JWT_SECRET_KEY=your-super-secure-jwt-secret
 
-# Kubernetes 설정 (Secret에서 관리)
-TARGET_CLUSTER_SERVER=https://<target-cluster-api-server>:6443
-TARGET_CLUSTER_CA_CERT_DATA=LS0tLS1CRUdJTi...
+# Kubernetes 설정
+KUBERNETES_CLIENT_ID=kubernetes
+CONSOLE_NAMESPACE=user-portal
 
 # 웹 콘솔 설정
-CONSOLE_IMAGE=projectgreenist/web-terminal:0.2.11
-CONSOLE_NAMESPACE=web-console
+CONSOLE_IMAGE=your-registry/web-terminal:latest
+WEB_TERMINAL_DOMAIN=your-terminal-domain.com
 ```
 
 ### Frontend 환경 변수
@@ -260,8 +276,10 @@ VITE_PORT=5173
 
 | 엔드포인트 | 메서드 | 설명 |
 |-----------|--------|------|
-| `/api/launch-console` | GET | 웹 콘솔 Pod 생성 및 실행 |
+| `/api/launch-console` | POST | 웹 콘솔 Pod 생성 및 실행 |
 | `/api/console-status` | GET | 웹 콘솔 상태 확인 |
+| `/api/logout-cleanup` | POST | 사용자 웹 콘솔 리소스 정리 |
+| `/api/delete-user-resources` | POST | 사용자별 모든 리소스 삭제 |
 
 ## 🔐 보안 설정
 
@@ -289,27 +307,36 @@ kubectl create secret generic user-portal-secrets \
 cat /path/to/ca.crt | base64 -w 0
 ```
 
-## 🆕 최신 개선사항
+## 🆕 최신 개선사항 (v0.6.x)
 
-### JWT 토큰 구조 최적화
-- **토큰 중첩 제거**: JWT 안에 OIDC 토큰을 포함하지 않음
-- **하이브리드 인증**: JWT + Session 기반으로 보안 강화
-- **성능 향상**: JWT 크기 95% 감소, 파싱 속도 3-5배 향상
+### 🎨 모던 React UI 전면 개편
+- **React + TypeScript**: Vanilla JS에서 React 18 + TypeScript로 전환
+- **shadcn/ui 도입**: 모던하고 일관된 UI 컴포넌트 라이브러리
+- **반응형 대시보드**: 데스크톱 및 모바일 최적화된 레이아웃
+- **Tailwind CSS**: 유지보수성 높은 스타일링 시스템
 
-### 웹 터미널 개인화
-- **동적 사용자 정보**: 실제 로그인 ID, 네임스페이스, 권한 표시
-- **맞춤형 프롬프트**: `user@secure-terminal-{username}:~$` 형태
-- **권한 정보 표시**: `blue-admin/red-developer` 형태로 역할 표시
+### 👥 LDAP 기반 프로젝트 권한 관리
+- **다중 프로젝트 지원**: `/dataops/{project}/{role}` 구조 기반
+- **동적 프로젝트 선택**: 사용자가 소속된 프로젝트 자동 파싱 및 선택 UI
+- **권한별 접근 제어**: `dev`(개발자), `adm`(관리자), `viewer`(조회자) 역할 구분
+- **실시간 사용자 정보**: Keycloak 토큰에서 실제 사용자 정보 추출 및 표시
 
-### 명령어 히스토리 지속성
-- **PVC 기반 저장**: 사용자별 100Mi PVC로 명령어 히스토리 보존
-- **자동 마운트**: 웹 터미널 Pod에 자동으로 히스토리 마운트
-- **권한 관리**: 적절한 파일 권한으로 히스토리 파일 관리
+### 🔗 통합 서비스 포털
+- **Grafana 연동**: 데이터 시각화 도구 SSO 접근
+- **Jenkins 연동**: CI/CD 파이프라인 SSO 접근  
+- **ArgoCD 연동**: GitOps 배포 도구 SSO 접근
+- **통합 대시보드**: 모든 도구를 하나의 포털에서 관리
 
-### 보안 강화
+### 🔄 향상된 로그아웃 플로우
+- **자동 리소스 정리**: 웹 콘솔 Pod/Service/Ingress/Secret 자동 삭제
+- **Keycloak 세션 관리**: `id_token_hint` 사용으로 확인 페이지 없는 직접 로그아웃
+- **상태 초기화**: 프론트엔드 상태 및 로컬 스토리지 완전 정리
+
+### 🛡️ 보안 및 성능 강화
 - **CSRF 보호**: State 기반 CSRF 공격 방지
 - **세션 격리**: 사용자별 완전한 세션 격리
-- **토큰 보안**: 민감한 토큰 정보를 클라이언트에 노출하지 않음
+- **번들 최적화**: 모듈 수 감소 및 번들 크기 최적화
+- **타입 안전성**: TypeScript 도입으로 런타임 에러 방지
 
 ## 🐳 Docker 배포
 
@@ -317,10 +344,22 @@ cat /path/to/ca.crt | base64 -w 0
 
 ```bash
 # 이미지 빌드
-docker buildx build --platform linux/amd64 -t portal-backend:latest ./portal-backend
+cd console-backend
+docker buildx build --platform linux/amd64 -t your-registry/user-portal-backend:latest --push .
 
 # 컨테이너 실행
-docker run -p 8080:8080 --env-file .env portal-backend:latest
+docker run -p 8080:8080 --env-file .env your-registry/user-portal-backend:latest
+```
+
+### 프론트엔드 배포
+
+```bash
+# 이미지 빌드
+cd portal-frontend
+docker buildx build --platform linux/amd64 -t your-registry/user-portal-frontend:latest --push .
+
+# 컨테이너 실행 (개발용)
+docker run -p 3000:80 your-registry/user-portal-frontend:latest
 ```
 
 ### 웹 터미널 이미지
@@ -328,7 +367,7 @@ docker run -p 8080:8080 --env-file .env portal-backend:latest
 ```bash
 # 웹 터미널 이미지 빌드
 cd web-terminal
-docker buildx build --platform linux/amd64 -t projectgreenist/web-terminal:0.2.11 --push .
+docker buildx build --platform linux/amd64 -t your-registry/web-terminal:latest --push .
 ```
 
 ### 쿠버네티스 배포
@@ -352,7 +391,7 @@ spec:
       serviceAccountName: portal-backend-sa
       containers:
       - name: user-portal-backend
-        image: projectgreenist/user-portal-backend:0.4.10
+        image: your-registry/user-portal-backend:latest
         ports:
         - containerPort: 8080
         env:
@@ -374,32 +413,35 @@ spec:
 
 ```bash
 # 백엔드 개발 서버
-cd portal-backend
+cd console-backend
 go run main.go
 
-# 프론트엔드 개발 서버
+# 프론트엔드 개발 서버 (React + Vite)
 cd portal-frontend
 npm run dev
 ```
 
-### 테스트
+### 빌드 및 배포
 
 ```bash
-# 백엔드 테스트
-cd portal-backend
-go test ./...
-
-# 프론트엔드 테스트
+# 프론트엔드 빌드
 cd portal-frontend
-npm test
+npm run build
+
+# Docker 이미지 빌드 (멀티 플랫폼)
+docker buildx build --platform linux/amd64 -t your-registry/user-portal-frontend:0.6.7 --push .
+
+# Kubernetes 배포
+kubectl set image deployment/user-portal-frontend frontend=your-registry/user-portal-frontend:0.6.7 -n user-portal
 ```
 
 ## 📖 상세 문서
 
-- **[Backend README](portal-backend/README.md)** - 백엔드 상세 가이드
-- **[Deployment README](deployment/README.md)** - 배포 및 Secret 관리
-- **[Configuration Guide](portal-backend/CONFIG.md)** - 설정 가이드
-- **[OIDC Setup](portal-backend/OIDC_SETUP.md)** - OIDC 설정 가이드
+- **[Backend README](console-backend/README.md)** - 백엔드 상세 가이드
+- **[Frontend README](portal-frontend/README.md)** - 프론트엔드 개발 가이드
+- **[Deployment README](deployment/README.md)** - Kubernetes 배포 및 Secret 관리
+- **[Configuration Guide](console-backend/CONFIG.md)** - 환경 변수 및 설정 가이드
+- **[Web Terminal Guide](web-terminal/README.md)** - 웹 터미널 모듈 가이드
 
 ## 🤝 기여하기
 
@@ -426,4 +468,4 @@ npm test
 
 ---
 
-**User Portal - Kubernetes Web Console** - Secure Multi-Cluster Terminal Access with Personalized Experience 
+**Kubernetes 기반 개발자 및 데이터 분석가 사용자 포털** - OIDC/LDAP 기반 통합 개발/분석 도구 포털 

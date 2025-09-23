@@ -12,16 +12,16 @@
 ```bash
 PORT=8080                    # 서버 포트 (기본값: 8080)
 GIN_MODE=release            # Gin 모드 (debug/release, 기본값: release)
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000  # CORS 허용 오리진
+ALLOWED_ORIGINS=https://your-portal-domain.com  # CORS 허용 오리진
 ```
 
 #### 2. OIDC 설정 (OIDC Config)
 ```bash
-OIDC_CLIENT_ID=portal-backend                               # OIDC 클라이언트 ID (필수)
+OIDC_CLIENT_ID=frontend                                     # OIDC 클라이언트 ID (필수)
 OIDC_CLIENT_SECRET=your-client-secret                      # OIDC 클라이언트 시크릿 (필수)
-OIDC_ISSUER_URL=http://localhost:8080/realms/portal        # OIDC 발급자 URL (필수)
-OIDC_REDIRECT_URL=http://localhost:8080/api/callback       # OIDC 리다이렉트 URL (필수)
-KUBERNETES_CLIENT_ID=kubernetes-client                     # Kubernetes 토큰 교환용 클라이언트 ID
+OIDC_ISSUER_URL=https://your-keycloak-domain.com/realms/your-realm  # OIDC 발급자 URL (필수)
+OIDC_REDIRECT_URL=https://your-portal-domain.com/callback  # OIDC 리다이렉트 URL (필수)
+KUBERNETES_CLIENT_ID=kubernetes                            # Kubernetes 토큰 교환용 클라이언트 ID
 ```
 
 #### 3. JWT 설정 (JWT Config)

@@ -4,19 +4,21 @@
 
 ## 📋 배포 개요
 
-User Portal은 다중 클러스터 환경에서 동작하며, 민감한 정보는 Kubernetes Secret으로 관리됩니다.
+User Portal은 Kubernetes 환경에서 동작하며, OIDC/LDAP 인증을 통한 통합 개발 도구 포털입니다.
 
-### 클러스터 구성
+### 주요 구성 요소
 
-- **A 클러스터**: 포털 애플리케이션 실행
-- **B 클러스터**: 웹 콘솔 Pod 생성 대상
+- **Frontend**: React + TypeScript 기반 대시보드
+- **Backend**: Go 기반 API 서버
+- **Authentication**: Keycloak OIDC + LDAP 연동
+- **Services**: Grafana, Jenkins, ArgoCD, Web Terminal 통합
 
-### 🆕 최신 개선사항
+### 🆕 최신 기능
 
-- **JWT 토큰 구조 최적화**: 토큰 중첩 제거로 성능 및 보안 향상
-- **웹 콘솔 개인화**: 사용자별 맞춤형 터미널 정보 표시
-- **명령어 히스토리 지속성**: PVC 기반 사용자별 히스토리 보존
-- **CSRF 보호**: State 기반 보안 강화
+- **🎨 React UI**: shadcn/ui 기반 모던 대시보드
+- **👥 프로젝트 권한 관리**: LDAP 그룹 기반 다중 프로젝트 지원
+- **🔗 서비스 통합**: SSO 기반 통합 도구 접근
+- **🔄 자동 리소스 관리**: 로그아웃 시 웹 콘솔 리소스 자동 정리
 
 ## 🔐 Secret 관리
 
