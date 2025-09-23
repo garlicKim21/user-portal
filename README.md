@@ -23,12 +23,13 @@ Kubernetes 기반 개발자 및 데이터 분석가를 위한 통합 웹 포털�
 ```mermaid
 graph TB
     subgraph "🖥️ 서비스 클러스터 (A)"
-        A1[🔐 Keycloak<br/>OIDC IdP]
-        A2[⚙️ Portal Backend<br/>Go + Gin]
-        A3[🎨 Portal Frontend<br/>Vite + Vanilla JS]
-        A4[🛡️ OPNsense 방화벽<br/>Nginx 리버스 프록시]
+        A1[🔐 Keycloak<br/>OIDC IdP + LDAP]
+        A2[⚙️ Portal Backend<br/>Go + Gin + JWT]
+        A3[🎨 Portal Frontend<br/>React + TypeScript + shadcn/ui]
+        A4[🛡️ Cilium Ingress<br/>HTTPS 리버스 프록시]
         A5[🔒 Kubernetes Secrets<br/>민감 정보 관리]
         A6[🖥️ 동적 생성되는<br/>웹 콘솔 Pod]
+        A7[📊 통합 서비스<br/>Grafana + Jenkins + ArgoCD]
     end
     
     subgraph "🎯 제어 대상 클러스터 (B)"
@@ -36,12 +37,16 @@ graph TB
         B2[📋 ConfigMap 기반<br/>kubeconfig 관리]
         B3[🔐 CA 인증서 기반<br/>보안 연결]
         B4[💾 사용자별 명령어<br/>히스토리 PVC]
+        B5[👥 RBAC 기반<br/>권한 관리]
     end
     
     A2 -->|원격 제어| B1
     A2 -->|설정 관리| B2
     A2 -->|보안 연결| B3
     A2 -->|스토리지 관리| B4
+    A2 -->|권한 검증| B5
+    A3 -->|API 호출| A2
+    A3 -->|SSO 접근| A7
     
     style A1 fill:#e1f5fe
     style A2 fill:#f3e5f5
@@ -49,49 +54,62 @@ graph TB
     style A4 fill:#fff3e0
     style A5 fill:#fce4ec
     style A6 fill:#f1f8e9
+    style A7 fill:#f0f4ff
     
     style B1 fill:#e3f2fd
     style B2 fill:#f1f8e9
     style B3 fill:#fff8e1
     style B4 fill:#fce4ec
+    style B5 fill:#e8f5e8
 ```
 
 ### 보안 아키텍처
 
 ```mermaid
 sequenceDiagram
-    participant Browser as 🌐 Web Browser
+    participant Browser as 🌐 React Frontend
     participant Backend as 🔧 Portal Backend
-    participant Secrets as 🔐 Kubernetes Secrets
+    participant Keycloak as 🔐 Keycloak + LDAP
+    participant Secrets as 🔒 Kubernetes Secrets
     participant K8s as ☸️ Target Cluster
+    participant Services as 📊 External Services
 
-    Browser->>Backend: 1. 로그인 요청
-    Backend->>Backend: 2. OIDC 인증 처리
-    Backend->>Secrets: 3. Secret 검증
-    Secrets-->>Backend: 4. 인증 정보 반환
+    Browser->>Keycloak: 1. OIDC 로그인 요청
+    Keycloak->>Keycloak: 2. LDAP 인증 처리
+    Keycloak-->>Browser: 3. ID Token + Access Token
+    Browser->>Backend: 4. 사용자 정보 + 프로젝트 권한
+    Backend->>Backend: 5. JWT 토큰 생성 + 세션 저장
+    Backend->>Secrets: 6. 클러스터 설정 조회
+    Secrets-->>Backend: 7. CA 인증서 + 클러스터 정보
     
-    Browser->>Backend: 5. 웹 콘솔 요청
-    Backend->>Backend: 6. 세션 관리
-    Backend->>K8s: 7. 클러스터 연결
-    K8s-->>Backend: 8. CA 인증서 제공
+    Browser->>Backend: 8. 웹 콘솔 요청
+    Backend->>Backend: 9. 세션 검증 + 권한 확인
+    Backend->>K8s: 10. 웹 콘솔 Pod 생성
+    K8s-->>Backend: 11. Pod 상태 + 접근 URL
+    Backend-->>Browser: 12. 웹 콘솔 URL 반환
     
-    Backend-->>Browser: 9. 웹 콘솔 URL 반환
-    Browser->>K8s: 10. 웹 콘솔 실행
+    Browser->>Services: 13. SSO 서비스 접근 (Grafana/Jenkins/ArgoCD)
+    Services->>Keycloak: 14. 토큰 검증
+    Keycloak-->>Services: 15. 인증 확인
+    Services-->>Browser: 16. 서비스 접근 허용
 ```
 
 ### 사용자 흐름
 
-1. **포털 접속**: `https://your-portal-domain.com` 접속
-2. **SSO 로그인**: Keycloak을 통한 LDAP 계정 인증
-3. **대시보드 표시**: 사용자 정보 및 프로젝트 권한 표시
-4. **프로젝트 선택**: 다중 프로젝트 소속 시 드롭다운에서 선택
-5. **도구 접근**: 
-   - **Grafana**: 데이터 시각화 (자동 SSO)
-   - **Jenkins**: CI/CD 파이프라인 (자동 SSO)
-   - **ArgoCD**: GitOps 배포 (자동 SSO)
-   - **Secure Web Terminal**: 격리된 Kubernetes CLI 환경
-6. **웹 콘솔 실행**: 사용자별 동적 Pod 생성 및 새 탭에서 터미널 실행
-7. **자동 로그아웃**: 웹 콘솔 리소스 정리 + Keycloak 세션 종료
+1. **포털 접속**: `https://portal.miribit.cloud` 접속
+2. **React 앱 로딩**: React + TypeScript 기반 SPA 로드
+3. **OIDC 인증**: Keycloak을 통한 LDAP 계정 SSO 로그인
+4. **사용자 정보 파싱**: Keycloak 토큰에서 사용자 정보 및 LDAP 그룹 추출
+5. **프로젝트 권한 매핑**: `/dataops/{project}/{role}` 구조 기반 권한 파싱
+6. **대시보드 렌더링**: shadcn/ui 기반 모던 대시보드 표시
+7. **프로젝트 선택**: 다중 프로젝트 소속 시 React 드롭다운에서 선택
+8. **통합 서비스 접근**: 
+   - **Grafana**: 데이터 시각화 (OIDC SSO)
+   - **Jenkins**: CI/CD 파이프라인 (OIDC SSO)
+   - **ArgoCD**: GitOps 배포 (OIDC SSO)
+   - **Web Terminal**: 격리된 Kubernetes CLI 환경
+9. **웹 콘솔 실행**: 사용자별 동적 Pod 생성 및 새 탭에서 터미널 실행
+10. **자동 로그아웃**: 웹 콘솔 리소스 정리 + Keycloak 세션 종료
 
 ## 🛠️ 기술 스택
 

@@ -156,17 +156,50 @@ pdf_content.txt
 
 # ===== 특정 프로젝트 파일 =====
 # 포털 백엔드 빌드 파일
-portal-backend/portal-backend
-portal-backend/portal-backend.exe
+console-backend/main
+console-backend/console-backend
+console-backend/console-backend.exe
 
 # 포털 프론트엔드 빌드 파일
 portal-frontend/dist/
 portal-frontend/build/
 
+# 웹 터미널 빌드 파일
+web-terminal/web-terminal
+
 # ===== 배포 파일 =====
 # deployment/ 디렉토리는 Secret으로 민감 정보를 관리하므로 포함
 # deployment/user-portal-secrets.yaml은 실제 환경에서만 생성 
-portal-frontend/src/components/WebTerminal_BACKUP_1996.tsx
-portal-frontend/src/components/WebTerminal_BASE_1996.tsx
-portal-frontend/src/components/WebTerminal_LOCAL_1996.tsx
-portal-frontend/src/components/WebTerminal_REMOTE_1996.tsx
+
+# ===== 백업 및 임시 파일 =====
+# 백업된 컴포넌트 파일들
+portal-frontend/src/components/WebTerminal_BACKUP_*.tsx
+portal-frontend/src/components/WebTerminal_BASE_*.tsx
+portal-frontend/src/components/WebTerminal_LOCAL_*.tsx
+portal-frontend/src/components/WebTerminal_REMOTE_*.tsx
+
+# ===== React/TypeScript 관련 =====
+# TypeScript 빌드 정보
+*.tsbuildinfo
+
+# Vite 캐시
+.vite/
+
+# ===== 테스트 관련 =====
+# Jest 캐시
+.jest/
+
+# Playwright 캐시
+test-results/
+playwright-report/
+playwright/.cache/
+
+# ===== 로그 및 디버그 =====
+# React DevTools
+react-devtools/
+
+# ===== 환경별 설정 =====
+# 로컬 개발 설정
+.env.local
+.env.development
+.env.production

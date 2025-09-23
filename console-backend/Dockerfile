@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # 애플리케이션 빌드 (AMD64 크로스 컴파일)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o main .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -o console-backend .
 
 # 최종 이미지
 FROM alpine:latest
@@ -25,10 +25,10 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # 빌드된 바이너리 복사
-COPY --from=builder /app/main .
+COPY --from=builder /app/console-backend .
 
 # 포트 노출
 EXPOSE 8080
 
 # 애플리케이션 실행
-CMD ["./main"] 
+CMD ["./console-backend"] 
