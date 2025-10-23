@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: user-portal-frontend
-        image: projectgreenist/user-portal-frontend:0.6.7
+        image: projectgreenist/user-portal-frontend:0.7.0
         imagePullPolicy: Always
         ports:
         - containerPort: 80
