@@ -1,8 +1,13 @@
 // OIDC 설정 파일 (react-oidc-context용)
+import env, { getKeycloakAuthority, getKeycloakEndpoints } from './env';
+
+// Keycloak 엔드포인트 생성
+const keycloakEndpoints = getKeycloakEndpoints();
+
 export const oidcConfig = {
-  authority: 'https://keycloak.miribit.cloud/realms/sso-demo',
-  client_id: 'frontend',
-  client_secret: 'aSnWDRHlSNITRlME6uYgIkdTRmIxZk7j',
+  authority: getKeycloakAuthority(),
+  client_id: env.KEYCLOAK_CLIENT_ID,
+  client_secret: env.KEYCLOAK_CLIENT_SECRET,
   redirect_uri: window.location.origin + '/callback',
   post_logout_redirect_uri: window.location.origin,
   response_type: 'code',
@@ -26,12 +31,12 @@ export const oidcConfig = {
   includeIdTokenInSilentRenew: true,
   // react-oidc-context 특별 설정
   metadata: {
-    issuer: 'https://keycloak.miribit.cloud/realms/sso-demo',
-    authorization_endpoint: 'https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/auth',
-    token_endpoint: 'https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/token',
-    userinfo_endpoint: 'https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/userinfo',
-    end_session_endpoint: 'https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout',
-    jwks_uri: 'https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/certs',
+    issuer: keycloakEndpoints.issuer,
+    authorization_endpoint: keycloakEndpoints.authorization,
+    token_endpoint: keycloakEndpoints.token,
+    userinfo_endpoint: keycloakEndpoints.userinfo,
+    end_session_endpoint: keycloakEndpoints.endSession,
+    jwks_uri: keycloakEndpoints.jwks,
   },
 };
 
@@ -42,9 +47,12 @@ export const additionalScopes = {
   // 필요에 따라 추가 스코프 정의
 };
 
-// API 엔드포인트 설정
+// API 엔드포인트 설정 (런타임 환경변수 사용)
 export const apiEndpoints = {
-  argocd: import.meta.env.VITE_ARGOCD_URL || 'https://argocd.miribit.cloud',
-  grafana: import.meta.env.VITE_GRAFANA_URL || 'https://grafana.miribit.cloud',
-  keycloak: 'https://keycloak.miribit.cloud',
+  argocd: env.ARGOCD_URL,
+  grafana: env.GRAFANA_URL,
+  jenkins: env.JENKINS_URL,
+  keycloak: env.KEYCLOAK_URL,
+  backend: env.BACKEND_URL,
+  portal: env.PORTAL_URL,
 };

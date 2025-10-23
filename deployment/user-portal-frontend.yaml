@@ -21,6 +21,13 @@ spec:
         imagePullPolicy: Always
         ports:
         - containerPort: 80
+        # ConfigMap에서 환경변수 로드
+        envFrom:
+        - configMapRef:
+            name: frontend-env
+        # 또는 Secret에서 민감한 정보 로드
+        # - secretRef:
+        #     name: frontend-secret
         resources:
           requests:
             memory: "64Mi"

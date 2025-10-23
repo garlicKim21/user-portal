@@ -12,6 +12,7 @@ import { backendAuthService } from '../services/backendAuthService';
 import { ProjectSelector } from './ProjectSelector';
 import { UserInfo } from './UserInfo';
 import { AppUser, UserProject } from '../types/user';
+import { apiEndpoints } from '../config/oidc';
 
 interface DashboardProps {
   user: AppUser;
@@ -33,25 +34,25 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
       id: 'grafana',
       name: 'Grafana',
       logo: '/Grafana_logo.svg.png',
-      url: 'https://grafana.miribit.cloud'
+      url: apiEndpoints.grafana
     },
     {
       id: 'terminal',
       name: 'Secure Web Terminal',
       logo: '/Kubernetes.png',
-      url: 'https://portal.miribit.cloud/api/launch-console'
+      url: `${apiEndpoints.backend}/api/launch-console`
     },
     {
       id: 'jenkins',
       name: 'Jenkins',
       logo: '/jenkins.png',
-      url: 'https://jenkins.miribit.cloud'
+      url: apiEndpoints.jenkins
     },
     {
       id: 'argocd',
       name: 'ArgoCD',
       logo: '/Argo CD.png',
-      url: 'https://argocd.miribit.cloud/auth/login?return_url=https://argocd.miribit.cloud/applications'
+      url: `${apiEndpoints.argocd}/auth/login?return_url=${apiEndpoints.argocd}/applications`
     }
   ];
 

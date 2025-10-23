@@ -5,6 +5,7 @@ import { Dashboard } from './Dashboard';
 import { Callback } from './Callback';
 import { useLocation } from 'react-router-dom';
 import { AppUser, UserProject, AuthState, mockProjects } from '../types/user';
+import env, { getOidcStorageKey, getKeycloakEndpoints } from '../config/env';
 
 // Keycloak groups에서 프로젝트 정보 파싱 함수
 function parseUserProjectsFromGroups(groups: string[] | undefined): UserProject[] {
@@ -136,7 +137,7 @@ export function AuthWrapper() {
       }
       
       // 2. 로컬 스토리지에서 OIDC 사용자 정보 정리
-      const oidcUserKey = 'oidc.user:https://keycloak.miribit.cloud/realms/sso-demo:frontend';
+      const oidcUserKey = getOidcStorageKey();
       localStorage.removeItem(oidcUserKey);
       sessionStorage.clear();
       
@@ -148,13 +149,14 @@ export function AuthWrapper() {
       
       // 4. 키클락 세션 로그아웃 (확인 페이지 없이 바로 로그아웃)
       const idToken = user?.id_token;
+      const keycloakEndpoints = getKeycloakEndpoints();
       let logoutUrl;
       
       if (idToken) {
         // id_token_hint 사용으로 확인 페이지 생략
-        logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}&id_token_hint=${idToken}`;
+        logoutUrl = `${keycloakEndpoints.endSession}?client_id=${env.KEYCLOAK_CLIENT_ID}&post_logout_redirect_uri=${encodeURIComponent(env.PORTAL_URL)}&id_token_hint=${idToken}`;
       } else {
-        logoutUrl = `https://keycloak.miribit.cloud/realms/sso-demo/protocol/openid-connect/logout?client_id=frontend&post_logout_redirect_uri=${encodeURIComponent('https://portal.miribit.cloud')}`;
+        logoutUrl = `${keycloakEndpoints.endSession}?client_id=${env.KEYCLOAK_CLIENT_ID}&post_logout_redirect_uri=${encodeURIComponent(env.PORTAL_URL)}`;
       }
       
       console.log('키클락 로그아웃 URL로 리다이렉트:', logoutUrl);

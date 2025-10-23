@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-env
+  namespace: user-portal
+  labels:
+    app: user-portal-frontend
+    environment: customer
+data:
+  # Keycloak 설정
+  # 고객 환경에 맞게 수정 필요
+  KEYCLOAK_URL: "https://customer-keycloak.internal"
+  KEYCLOAK_REALM: "production"
+  KEYCLOAK_CLIENT_ID: "portal-frontend"
+  KEYCLOAK_CLIENT_SECRET: "customer-client-secret-here"
+
+  # 외부 서비스 URL
+  # 고객 환경에 맞게 수정 필요
+  GRAFANA_URL: "https://customer-grafana.internal"
+  JENKINS_URL: "https://customer-jenkins.internal"
+  ARGOCD_URL: "https://customer-argocd.internal"
+
+  # 백엔드 API URL
+  # 고객 환경에 맞게 수정 필요
+  BACKEND_URL: "https://customer-portal.internal"
+
+  # 포털 자체 URL (로그아웃 리디렉션 등에 사용)
+  # 고객 환경에 맞게 수정 필요
+  PORTAL_URL: "https://customer-portal.internal"
+---
+
+# 참고: Secret으로 관리하는 것이 더 안전합니다
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: frontend-secret
+#   namespace: user-portal
+# type: Opaque
+# data:
+#   KEYCLOAK_CLIENT_SECRET: <base64-encoded-value>
+

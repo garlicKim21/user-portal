@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-env
+  namespace: user-portal
+  labels:
+    app: user-portal-frontend
+    environment: prototype
+data:
+  # Keycloak 설정
+  KEYCLOAK_URL: "https://keycloak.miribit.cloud"
+  KEYCLOAK_REALM: "sso-demo"
+  KEYCLOAK_CLIENT_ID: "frontend"
+  KEYCLOAK_CLIENT_SECRET: "aSnWDRHlSNITRlME6uYgIkdTRmIxZk7j"
+
+  # 외부 서비스 URL
+  GRAFANA_URL: "https://grafana.miribit.cloud"
+  JENKINS_URL: "https://jenkins.miribit.cloud"
+  ARGOCD_URL: "https://argocd.miribit.cloud"
+
+  # 백엔드 API URL
+  BACKEND_URL: "https://portal.miribit.cloud"
+
+  # 포털 자체 URL (로그아웃 리디렉션 등에 사용)
+  PORTAL_URL: "https://portal.miribit.cloud"
