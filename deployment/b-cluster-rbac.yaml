@@ -152,7 +152,7 @@ metadata:
   namespace: fdc
 subjects:
 - kind: Group
-  name: /thadoop/fdc/adm
+  name: /dataops/fdc/adm
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -166,7 +166,7 @@ metadata:
   namespace: fdc
 subjects:
 - kind: Group
-  name: /thadoop/fdc/dev
+  name: /dataops/fdc/dev
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -180,7 +180,7 @@ metadata:
   namespace: fdc
 subjects:
 - kind: Group
-  name: /thadoop/fdc/view
+  name: /dataops/fdc/view
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -198,7 +198,7 @@ metadata:
   namespace: eds
 subjects:
 - kind: Group
-  name: /thadoop/eds/adm
+  name: /dataops/eds/adm
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -212,7 +212,7 @@ metadata:
   namespace: eds
 subjects:
 - kind: Group
-  name: /thadoop/eds/dev
+  name: /dataops/eds/dev
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
@@ -226,7 +226,7 @@ metadata:
   namespace: eds
 subjects:
 - kind: Group
-  name: /thadoop/eds/view
+  name: /dataops/eds/view
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole

@@ -10,15 +10,30 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleKeycloakLogin = async () => {
+    // === 디버깅 로그 시작 ===
+    console.log('🔵 [LoginPage] ===== 로그인 버튼 클릭 =====');
+    console.log('🔵 [LoginPage] window.ENV:', window.ENV);
+    console.log('🔵 [LoginPage] window.location:', {
+      href: window.location.href,
+      origin: window.location.origin,
+      protocol: window.location.protocol,
+      host: window.location.host
+    });
+    
     setIsLoading(true);
     
     try {
+      console.log('🔵 [LoginPage] onLogin() 함수 호출 시도...');
       // Keycloak OIDC 로그인으로 리다이렉트
-      onLogin(); // 이 함수는 AuthWrapper에서 전달받은 login() 함수
+      await onLogin(); // 이 함수는 AuthWrapper에서 전달받은 login() 함수
+      console.log('🔵 [LoginPage] onLogin() 함수 호출 완료');
     } catch (error) {
-      console.error('로그인 실패:', error);
+      console.error('🔴 [LoginPage] 로그인 실패:', error);
+      console.error('🔴 [LoginPage] 에러 타입:', typeof error);
+      console.error('🔴 [LoginPage] 에러 상세:', JSON.stringify(error, null, 2));
       setIsLoading(false);
     }
+    // === 디버깅 로그 끝 ===
   };
 
   return (

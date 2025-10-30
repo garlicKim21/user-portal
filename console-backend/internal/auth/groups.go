@@ -76,50 +76,6 @@ func ExtractUserGroups(idToken string) (*UserGroups, error) {
 	return userGroups, nil
 }
 
-// GetUserRole 사용자의 최고 권한 역할 반환
-// 우선순위: admin > developer > viewer > user
-func (ug *UserGroups) GetUserRole() string {
-	for _, group := range ug.Groups {
-		// /최상위그룹/서비스명/권한 형태 파싱
-		if !strings.HasPrefix(group, "/") {
-			continue
-		}
-
-		parts := strings.Split(strings.TrimPrefix(group, "/"), "/")
-		if len(parts) < 3 {
-			continue
-		}
-
-		role := parts[2]
-		switch role {
-		case "adm":
-			return "admin"
-		case "dev":
-			return "developer"
-		case "view":
-			return "viewer"
-		}
-	}
-
-	return "user" // 기본 역할
-}
-
-// HasRole 특정 역할 권한이 있는지 확인
-func (ug *UserGroups) HasRole(role string) bool {
-	userRole := ug.GetUserRole()
-
-	switch strings.ToLower(role) {
-	case "admin":
-		return userRole == "admin"
-	case "developer":
-		return userRole == "admin" || userRole == "developer"
-	case "viewer":
-		return userRole == "admin" || userRole == "developer" || userRole == "viewer"
-	default:
-		return true // 기본 사용자 권한
-	}
-}
-
 // ToJSON 그룹 정보를 JSON 문자열로 변환
 func (ug *UserGroups) ToJSON() string {
 	data, err := json.Marshal(ug)
@@ -136,7 +92,43 @@ var RolePriority = map[string]int{
 	"view": 3, // 최저 권한
 }
 
+// ParseGroupInfo 그룹 문자열에서 네임스페이스와 권한 키를 파싱합니다.
+// 파싱 규칙:
+// - 그룹은 '/'로 계층화되고 깊이는 가변
+// - 마지막 바로 앞 토큰이 네임스페이스
+// - 마지막 토큰은 언더바('_')로 구분되며, 언더바 뒤가 실제 권한 키(adm|dev|view)
+// 반환값: (namespace, roleKey, ok)
+func ParseGroupInfo(group string) (string, string, bool) {
+	if !strings.HasPrefix(group, "/") {
+		return "", "", false
+	}
+
+	parts := strings.Split(strings.TrimPrefix(group, "/"), "/")
+	if len(parts) < 2 {
+		return "", "", false
+	}
+
+	namespace := parts[len(parts)-2]
+	last := parts[len(parts)-1]
+
+	underscoreIdx := strings.LastIndex(last, "_")
+	if underscoreIdx == -1 || underscoreIdx == len(last)-1 {
+		return "", "", false
+	}
+
+	roleKey := last[underscoreIdx+1:]
+
+	// 역할 키가 유효한지 확인
+	if _, ok := RolePriority[roleKey]; !ok {
+		return "", "", false
+	}
+
+	return namespace, roleKey, true
+}
+
 // DetermineDefaultNamespace 사용자의 그룹 목록을 기반으로 기본 네임스페이스를 결정합니다.
+// 여러 그룹에 속해 있을 경우 가장 높은 우선순위의 네임스페이스를 선택합니다.
+// 동일한 우선순위가 여러 개이거나 유효한 그룹이 없으면 "default"를 반환합니다.
 func (ug *UserGroups) DetermineDefaultNamespace() string {
 	// cluster-admins 그룹이 있으면 무조건 default 네임스페이스를 반환합니다.
 	if slices.Contains(ug.Groups, "cluster-admins") {
@@ -146,25 +138,13 @@ func (ug *UserGroups) DetermineDefaultNamespace() string {
 	highestPriority := 99
 	candidateNamespaces := make([]string, 0)
 
-	// 다른 그룹들을 순회하며 가장 높은 우선순위의 네임스페이스 후보들을 수집합니다.
 	for _, group := range ug.Groups {
-		// /최상위그룹/서비스명/권한 형태 파싱
-		if !strings.HasPrefix(group, "/") {
-			continue
-		}
-
-		parts := strings.Split(strings.TrimPrefix(group, "/"), "/")
-		if len(parts) < 3 {
-			continue
-		}
-
-		namespace := parts[1] // 서비스명
-		role := parts[2]      // 권한 (adm, dev, view)
-
-		priority, ok := RolePriority[role]
+		namespace, roleKey, ok := ParseGroupInfo(group)
 		if !ok {
 			continue
 		}
+
+		priority := RolePriority[roleKey]
 
 		if priority < highestPriority {
 			highestPriority = priority

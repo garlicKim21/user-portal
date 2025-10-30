@@ -26,7 +26,6 @@ type ConsoleResource struct {
 	UserID         string    `json:"user_id"`
 	DeploymentName string    `json:"deployment_name"`
 	ServiceName    string    `json:"service_name"`
-	SecretName     string    `json:"secret_name"`
 	IngressName    string    `json:"ingress_name"`
 	PVCName        string    `json:"pvc_name"`
 	Namespace      string    `json:"namespace"`
@@ -99,7 +98,6 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 		UserID:         userID,
 		DeploymentName: fmt.Sprintf("console-%s-%s", userID, fullUUID),
 		ServiceName:    fmt.Sprintf("console-svc-%s-%s", userID, fullUUID),
-		SecretName:     fmt.Sprintf("kubeconfig-secret-%s-%s", userID, fullUUID),
 		IngressName:    fmt.Sprintf("console-ingress-%s-%s", userID, fullUUID),
 		PVCName:        fmt.Sprintf("history-%s", userID), // 사용자별 히스토리는 공유
 		Namespace:      config.Namespace,
@@ -141,33 +139,7 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 		}
 	}
 
-	// 2. Secret 생성 (kubeconfig 보안 저장)
-	kubeconfig, errGen := GenerateUserKubeconfig(defaultNamespace)
-	if errGen != nil {
-		return nil, fmt.Errorf("failed to generate user-specific kubeconfig: %v", errGen)
-	}
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      consoleResource.SecretName,
-			Namespace: consoleResource.Namespace,
-			Labels: map[string]string{
-				"app":     "web-console",
-				"user":    userID,
-				"session": resourceID,
-			},
-		},
-		Type: corev1.SecretTypeOpaque,
-		Data: map[string][]byte{
-			"config": []byte(kubeconfig),
-		},
-	}
-
-	_, err = c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Create(ctx, secret, metav1.CreateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Secret: %v", err)
-	}
-
-	// 3. Deployment 생성
+	// 2. Deployment 생성
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      consoleResource.DeploymentName,
@@ -219,21 +191,12 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 								set -e
 								echo "Initializing web terminal environment..."
 								
-								# Check kubeconfig is available
-								if [ -f /home/user/.kube/config ]; then
-									echo "Kubeconfig found, checking connectivity..."
-									kubectl version --client || echo "kubectl client ready"
-								else
-									echo "Warning: kubeconfig not found"
-								fi
-								
 								# Start ttyd service with base path
 								echo "Starting ttyd service with base path..."
 								exec ttyd --port 8080 --writable --max-clients 1 --base-path /%s/%s bash
 								`, userID, fullUUID),
 							},
 							Env: []corev1.EnvVar{
-								{Name: "KUBECONFIG", Value: "/home/user/.kube/config"},
 								{Name: "K8S_TOKEN", Value: idToken},
 								{Name: "K8S_SERVER", Value: os.Getenv("TARGET_CLUSTER_SERVER")},
 								{Name: "K8S_CA_DATA", Value: os.Getenv("TARGET_CLUSTER_CA_CERT_DATA")},
@@ -242,12 +205,6 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 								{Name: "USER_ROLES", Value: getUserRoles(userID, idToken)},
 							},
 							VolumeMounts: []corev1.VolumeMount{
-								{
-									Name:      "kubeconfig",
-									MountPath: "/home/user/.kube/config",
-									SubPath:   "config",
-									ReadOnly:  true,
-								},
 								{
 									Name:      "history-storage",
 									MountPath: "/home/user/.bash_history.d", // 디렉토리로 마운트
@@ -268,20 +225,6 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 					},
 					Volumes: []corev1.Volume{
 						{
-							Name: "kubeconfig",
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: consoleResource.SecretName,
-									Items: []corev1.KeyToPath{
-										{
-											Key:  "config",
-											Path: "config",
-										},
-									},
-								},
-							},
-						},
-						{
 							Name: "history-storage",
 							VolumeSource: corev1.VolumeSource{
 								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
@@ -298,8 +241,6 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 
 	_, err = c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Create(ctx, deployment, metav1.CreateOptions{})
 	if err != nil {
-		// Secret 정리
-		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
 		return nil, fmt.Errorf("failed to create Deployment: %v", err)
 	}
 
@@ -332,9 +273,8 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 
 	_, err = c.Clientset.CoreV1().Services(consoleResource.Namespace).Create(ctx, service, metav1.CreateOptions{})
 	if err != nil {
-		// Deployment와 Secret 정리
+		// Deployment 정리
 		c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Delete(ctx, consoleResource.DeploymentName, metav1.DeleteOptions{})
-		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
 		return nil, fmt.Errorf("failed to create Service: %v", err)
 	}
 
@@ -388,10 +328,9 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 
 	_, err = c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
 	if err != nil {
-		// Deployment와 Secret, Ingress 정리
+		// Deployment와 Service 정리
 		c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Delete(ctx, consoleResource.DeploymentName, metav1.DeleteOptions{})
-		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
-		c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Delete(ctx, consoleResource.IngressName, metav1.DeleteOptions{})
+		c.Clientset.CoreV1().Services(consoleResource.Namespace).Delete(ctx, consoleResource.ServiceName, metav1.DeleteOptions{})
 		return nil, fmt.Errorf("failed to create Ingress: %v", err)
 	}
 
@@ -473,12 +412,6 @@ func (c *Client) DeleteConsoleResources(resource *ConsoleResource) error {
 		log.Printf("Failed to delete Deployment %s: %v", resource.DeploymentName, err)
 	}
 
-	// Secret 삭제
-	err = c.Clientset.CoreV1().Secrets(resource.Namespace).Delete(ctx, resource.SecretName, metav1.DeleteOptions{})
-	if err != nil {
-		log.Printf("Failed to delete Secret %s: %v", resource.SecretName, err)
-	}
-
 	// Ingress 삭제
 	err = c.Clientset.NetworkingV1().Ingresses(resource.Namespace).Delete(ctx, resource.IngressName, metav1.DeleteOptions{})
 	if err != nil {
@@ -531,16 +464,6 @@ func (c *Client) cleanupResourcesByLabels(namespace string, labels map[string]st
 		if err == nil {
 			for _, svc := range services.Items {
 				c.Clientset.CoreV1().Services(namespace).Delete(ctx, svc.Name, metav1.DeleteOptions{})
-			}
-		}
-
-		// Secret 삭제
-		secrets, err := c.Clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
-			LabelSelector: labelSelector,
-		})
-		if err == nil {
-			for _, secret := range secrets.Items {
-				c.Clientset.CoreV1().Secrets(namespace).Delete(ctx, secret.Name, metav1.DeleteOptions{})
 			}
 		}
 
@@ -616,24 +539,7 @@ func (c *Client) DeleteUserResources(userID, namespace string) error {
 		}
 	}
 
-	// 3. Secret 삭제
-	secrets, err := c.Clientset.CoreV1().Secrets(namespace).List(ctx, metav1.ListOptions{
-		LabelSelector: userLabelSelector,
-	})
-	if err != nil {
-		log.Printf("Failed to list secrets for user %s: %v", userID, err)
-	} else {
-		for _, secret := range secrets.Items {
-			err = c.Clientset.CoreV1().Secrets(namespace).Delete(ctx, secret.Name, metav1.DeleteOptions{})
-			if err != nil {
-				log.Printf("Failed to delete Secret %s: %v", secret.Name, err)
-			} else {
-				log.Printf("Deleted Secret: %s", secret.Name)
-			}
-		}
-	}
-
-	// 4. Ingress 삭제
+	// 3. Ingress 삭제
 	ingresses, err := c.Clientset.NetworkingV1().Ingresses(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: userLabelSelector,
 	})
@@ -685,19 +591,31 @@ func getUserRoles(userID, idToken string) string {
 	// 네임스페이스별 역할 추가
 	namespaceRoles := make(map[string]string)
 	for _, group := range userGroups.Groups {
-		parts := splitN(group, "-", 2)
-		if len(parts) == 2 {
-			namespace := parts[0]
-			role := parts[1]
+		namespace, roleKey, ok := auth.ParseGroupInfo(group)
+		if !ok {
+			continue
+		}
 
-			// 이미 더 높은 권한이 있으면 건너뛰기
-			if existingRole, exists := namespaceRoles[namespace]; exists {
-				if getRolePriority(role) < getRolePriority(existingRole) {
-					namespaceRoles[namespace] = role
-				}
-			} else {
+		// adm -> admin, dev -> developer, view -> viewer 매핑
+		var role string
+		switch roleKey {
+		case "adm":
+			role = "admin"
+		case "dev":
+			role = "developer"
+		case "view":
+			role = "viewer"
+		default:
+			continue
+		}
+
+		// 이미 더 높은 권한이 있으면 건너뛰기
+		if existingRole, exists := namespaceRoles[namespace]; exists {
+			if getRolePriority(role) < getRolePriority(existingRole) {
 				namespaceRoles[namespace] = role
 			}
+		} else {
+			namespaceRoles[namespace] = role
 		}
 	}
 
@@ -723,36 +641,6 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
-}
-
-// splitN 문자열을 구분자로 분할 (Go 1.18 이전 버전 호환)
-func splitN(s, sep string, n int) []string {
-	if n <= 0 {
-		return nil
-	}
-
-	result := make([]string, 0, n)
-	start := 0
-	for i := 0; i < n-1; i++ {
-		idx := index(s[start:], sep)
-		if idx == -1 {
-			break
-		}
-		result = append(result, s[start:start+idx])
-		start = start + idx + len(sep)
-	}
-	result = append(result, s[start:])
-	return result
-}
-
-// index 문자열에서 하위 문자열의 인덱스 반환
-func index(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
 }
 
 // join 문자열 슬라이스를 구분자로 연결

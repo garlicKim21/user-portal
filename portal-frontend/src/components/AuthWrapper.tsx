@@ -8,6 +8,10 @@ import { AppUser, UserProject, AuthState, mockProjects } from '../types/user';
 import env, { getOidcStorageKey, getKeycloakEndpoints } from '../config/env';
 
 // Keycloak groups에서 프로젝트 정보 파싱 함수
+// 새로운 그룹 형식 지원:
+// - 그룹은 '/'로 계층화되고 깊이는 가변
+// - 마지막 바로 앞 토큰이 네임스페이스
+// - 마지막 토큰은 언더바('_')로 구분되며, 언더바 뒤가 실제 권한 키(adm|dev|view)
 function parseUserProjectsFromGroups(groups: string[] | undefined): UserProject[] {
   console.log('parseUserProjectsFromGroups called with groups:', groups);
   
@@ -17,35 +21,82 @@ function parseUserProjectsFromGroups(groups: string[] | undefined): UserProject[
   }
 
   const projects: UserProject[] = [];
+  const projectMap = new Map<string, UserProject>(); // 중복 제거를 위한 맵
   
   groups.forEach(group => {
     console.log('Processing group:', group);
-    // /dataops/{project}/{role} 형식 파싱
-    const match = group.match(/^\/dataops\/([^\/]+)\/([^\/]+)$/);
-    if (match) {
-      const [, projectId, role] = match;
-      console.log('Parsed project:', projectId, 'role:', role);
+    
+    // 그룹이 '/'로 시작하지 않으면 무시
+    if (!group.startsWith('/')) {
+      console.log('Group does not start with /:', group);
+      return;
+    }
+
+    // '/'로 split (깊이 가변)
+    const parts = group.substring(1).split('/');
+    if (parts.length < 2) {
+      console.log('Group does not have enough depth:', group);
+      return;
+    }
+
+    // 마지막 바로 앞 토큰이 네임스페이스
+    const namespace = parts[parts.length - 2];
+    // 마지막 토큰에서 언더바 뒤가 권한 키
+    const lastToken = parts[parts.length - 1];
+    
+    const underscoreIdx = lastToken.lastIndexOf('_');
+    if (underscoreIdx === -1 || underscoreIdx === lastToken.length - 1) {
+      console.log('Last token does not have underscore format:', lastToken);
+      return;
+    }
+
+    const roleKey = lastToken.substring(underscoreIdx + 1);
+    
+    // 유효한 권한 키인지 확인 (adm, dev, view)
+    if (roleKey !== 'adm' && roleKey !== 'dev' && roleKey !== 'view') {
+      console.log('Invalid role key:', roleKey);
+      return;
+    }
+
+    console.log('Parsed namespace:', namespace, 'role:', roleKey);
+    
+    // 프로젝트 ID를 기반으로 프로젝트명 매핑
+    const projectName = getProjectName(namespace);
+    // roleKey가 'view'인 경우 'viewer'로 변환 (프론트엔드 타입 호환)
+    const role = roleKey === 'view' ? 'viewer' : (roleKey as 'dev' | 'adm');
+    const roleLabel = getRoleLabel(roleKey);
+    
+    // 동일한 네임스페이스가 이미 있으면, 더 높은 권한으로 업데이트
+    // 우선순위: adm > dev > view
+    const existingProject = projectMap.get(namespace);
+    if (existingProject) {
+      const priority = { 'adm': 1, 'dev': 2, 'view': 3, 'viewer': 3 };
+      const existingPriority = priority[existingProject.role] || 99;
+      const newPriority = priority[role] || 99;
       
-      // 프로젝트 ID를 기반으로 프로젝트명 매핑
-      const projectName = getProjectName(projectId);
-      const roleLabel = getRoleLabel(role);
-      
-      const project = {
-        id: projectId,
-        name: projectName,
-        role: role as 'dev' | 'adm' | 'viewer',
-        roleLabel: roleLabel
-      };
-      
-      console.log('Created project:', project);
-      projects.push(project);
+      if (newPriority < existingPriority) {
+        // 더 높은 권한으로 업데이트
+        projectMap.set(namespace, {
+          id: namespace,
+          name: projectName,
+          role: role,
+          roleLabel: roleLabel
+        });
+      }
     } else {
-      console.log('Group does not match pattern:', group);
+      projectMap.set(namespace, {
+        id: namespace,
+        name: projectName,
+        role: role,
+        roleLabel: roleLabel
+      });
     }
   });
 
-  console.log('Final projects array:', projects);
-  return projects;
+  // Map의 값들을 배열로 변환
+  const finalProjects = Array.from(projectMap.values());
+  console.log('Final projects array:', finalProjects);
+  return finalProjects;
 }
 
 // 프로젝트 ID를 프로젝트명으로 매핑 (동적 생성)
@@ -55,18 +106,33 @@ function getProjectName(projectId: string): string {
 }
 
 // 역할 코드를 역할명으로 매핑
-function getRoleLabel(role: string): string {
+function getRoleLabel(roleKey: string): string {
   const roleLabels: Record<string, string> = {
     'dev': '개발자',
     'adm': '관리자',
-    'viewer': '조회자'
+    'view': '조회자',
+    'viewer': '조회자' // 호환성을 위해 유지
   };
-  return roleLabels[role] || role;
+  return roleLabels[roleKey] || roleKey;
 }
 
 export function AuthWrapper() {
-  const { signinRedirect, isAuthenticated, user, isLoading } = useAuth();
+  const { signinRedirect, isAuthenticated, user, isLoading, error } = useAuth();
   const location = useLocation();
+  
+  // === 디버깅 로그 ===
+  console.log('🟡 [AuthWrapper] 렌더링:', {
+    isAuthenticated,
+    isLoading,
+    hasUser: !!user,
+    pathname: location.pathname,
+    hasError: !!error
+  });
+  
+  if (error) {
+    console.error('🔴 [AuthWrapper] OIDC 에러 발생:', error);
+    console.error('🔴 [AuthWrapper] 에러 상세:', JSON.stringify(error, null, 2));
+  }
   
   // 상태 관리
   const [authState, setAuthState] = useState<AuthState>({
@@ -188,7 +254,19 @@ export function AuthWrapper() {
 
   // 인증되지 않은 경우 로그인 페이지 표시
   if (!isAuthenticated) {
-    return <LoginPage onLogin={() => signinRedirect()} />;
+    const handleLogin = async () => {
+      try {
+        console.log('🟡 [AuthWrapper] signinRedirect() 호출 시작');
+        console.log('🟡 [AuthWrapper] 현재 URL:', window.location.href);
+        await signinRedirect();
+        console.log('🟡 [AuthWrapper] signinRedirect() 호출 완료');
+      } catch (err) {
+        console.error('🔴 [AuthWrapper] signinRedirect() 에러:', err);
+        console.error('🔴 [AuthWrapper] 에러 상세:', JSON.stringify(err, null, 2));
+        throw err;
+      }
+    };
+    return <LoginPage onLogin={handleLogin} />;
   }
 
   // 인증된 경우 대시보드 표시 (사용자 정보가 로드되지 않은 경우 로딩 표시)
