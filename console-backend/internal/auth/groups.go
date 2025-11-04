@@ -130,9 +130,11 @@ func ParseGroupInfo(group string) (string, string, bool) {
 // 여러 그룹에 속해 있을 경우 가장 높은 우선순위의 네임스페이스를 선택합니다.
 // 동일한 우선순위가 여러 개이거나 유효한 그룹이 없으면 "default"를 반환합니다.
 func (ug *UserGroups) DetermineDefaultNamespace() string {
-	// cluster-admins 그룹이 있으면 무조건 default 네임스페이스를 반환합니다.
-	if slices.Contains(ug.Groups, "cluster-admins") {
-		return "default"
+	// /dataops/serviceroles/platform/platform_* 패턴의 그룹이 있으면 default 반환
+	for _, group := range ug.Groups {
+		if strings.HasPrefix(group, "/dataops/serviceroles/platform/") {
+			return "default"
+		}
 	}
 
 	highestPriority := 99
