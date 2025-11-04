@@ -388,23 +388,50 @@ func (c *Client) CreateConsoleResources(userID, idToken, refreshToken, defaultNa
 
 	_, err = c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Create(ctx, ingress, metav1.CreateOptions{})
 	if err != nil {
-		// Deployment와 Secret, Ingress 정리
+		// Deployment, Service, Secret 정리
 		c.Clientset.AppsV1().Deployments(consoleResource.Namespace).Delete(ctx, consoleResource.DeploymentName, metav1.DeleteOptions{})
+		c.Clientset.CoreV1().Services(consoleResource.Namespace).Delete(ctx, consoleResource.ServiceName, metav1.DeleteOptions{})
 		c.Clientset.CoreV1().Secrets(consoleResource.Namespace).Delete(ctx, consoleResource.SecretName, metav1.DeleteOptions{})
-		c.Clientset.NetworkingV1().Ingresses(consoleResource.Namespace).Delete(ctx, consoleResource.IngressName, metav1.DeleteOptions{})
 		return nil, fmt.Errorf("failed to create Ingress: %v", err)
 	}
 
 	// Deployment가 준비될 때까지 대기
+	log.Printf("Waiting for Deployment %s to be ready...", consoleResource.DeploymentName)
 	err = c.WaitForDeploymentReady(consoleResource.DeploymentName, consoleResource.Namespace, 60*time.Second)
 	if err != nil {
-		log.Printf("Deployment %s not ready after timeout, but continuing: %v", consoleResource.DeploymentName, err)
+		log.Printf("Deployment %s not ready after timeout: %v. Cleaning up resources...", consoleResource.DeploymentName, err)
+		// Deployment가 준비되지 않으면 생성된 리소스 정리
+		c.DeleteConsoleResources(consoleResource)
+		return nil, fmt.Errorf("deployment not ready after timeout: %w", err)
+	}
+	log.Printf("Deployment %s is ready", consoleResource.DeploymentName)
+
+	// Service Endpoint가 준비될 때까지 대기
+	log.Printf("Waiting for Service %s endpoints to be ready...", consoleResource.ServiceName)
+	err = c.WaitForServiceReady(consoleResource.ServiceName, consoleResource.Namespace, 30*time.Second)
+	if err != nil {
+		log.Printf("Service %s endpoints not ready after timeout: %v. Cleaning up resources...", consoleResource.ServiceName, err)
+		// Service Endpoint가 준비되지 않으면 생성된 리소스 정리
+		c.DeleteConsoleResources(consoleResource)
+		return nil, fmt.Errorf("service endpoints not ready after timeout: %w", err)
+	}
+	log.Printf("Service %s is ready with endpoints", consoleResource.ServiceName)
+
+	// Ingress가 준비될 때까지 대기
+	log.Printf("Waiting for Ingress %s to be ready...", consoleResource.IngressName)
+	err = c.WaitForIngressReady(consoleResource.IngressName, consoleResource.Namespace, 30*time.Second)
+	if err != nil {
+		log.Printf("Warning: Ingress %s not fully ready after timeout: %v. Proceeding anyway as it may need more time.", consoleResource.IngressName, err)
+		// Ingress는 경고만 출력하고 계속 진행 (백그라운드에서 준비될 수 있음)
+	} else {
+		log.Printf("Ingress %s is ready", consoleResource.IngressName)
 	}
 
 	// 콘솔 URL 생성 (사용자별 고유 경로)
 	baseURL := portalConfig.Get().Console.BaseURL
 	consoleResource.ConsoleURL = fmt.Sprintf("https://%s/%s/%s", baseURL, userID, fullUUID)
 
+	log.Printf("Console resources created successfully. URL: %s", consoleResource.ConsoleURL)
 	return consoleResource, nil
 }
 
@@ -448,6 +475,55 @@ func (c *Client) WaitForPodReady(podName, namespace string, timeout time.Duratio
 			}
 		}
 
+		return false, nil
+	})
+}
+
+// WaitForServiceReady Service의 Endpoint가 준비될 때까지 대기
+func (c *Client) WaitForServiceReady(serviceName, namespace string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		// Endpoint 조회 (Service와 동일한 이름)
+		endpoints, err := c.Clientset.CoreV1().Endpoints(namespace).Get(ctx, serviceName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		// Endpoint에 실제 Pod IP가 등록되었는지 확인
+		if len(endpoints.Subsets) > 0 {
+			for _, subset := range endpoints.Subsets {
+				if len(subset.Addresses) > 0 {
+					log.Printf("Service %s has %d ready endpoint(s)", serviceName, len(subset.Addresses))
+					return true, nil
+				}
+			}
+		}
+
+		log.Printf("Waiting for Service %s to have ready endpoints...", serviceName)
+		return false, nil
+	})
+}
+
+// WaitForIngressReady Ingress가 준비될 때까지 대기
+func (c *Client) WaitForIngressReady(ingressName, namespace string, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	return wait.PollUntilContextTimeout(ctx, 2*time.Second, timeout, true, func(ctx context.Context) (bool, error) {
+		ingress, err := c.Clientset.NetworkingV1().Ingresses(namespace).Get(ctx, ingressName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+
+		// Ingress에 LoadBalancer IP/Host가 할당되었는지 확인
+		if len(ingress.Status.LoadBalancer.Ingress) > 0 {
+			log.Printf("Ingress %s is ready with LoadBalancer: %v", ingressName, ingress.Status.LoadBalancer.Ingress)
+			return true, nil
+		}
+
+		log.Printf("Waiting for Ingress %s to be ready...", ingressName)
 		return false, nil
 	})
 }
