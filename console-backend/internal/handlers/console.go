@@ -61,7 +61,7 @@ func (h *ConsoleHandler) HandleLaunchConsole(c *gin.Context) {
 		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
 			"error": err.Error(),
 		})
-		utils.Response.Unauthorized(c, "Invalid OIDC token")
+		utils.Response.Unauthorized(c, fmt.Sprintf("Invalid OIDC token: %s", err.Error()))
 		return
 	}
 
@@ -145,7 +145,7 @@ func (h *ConsoleHandler) HandleDeleteConsole(c *gin.Context) {
 		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
 			"error": err.Error(),
 		})
-		utils.Response.Unauthorized(c, "Invalid OIDC token")
+		utils.Response.Unauthorized(c, fmt.Sprintf("Invalid OIDC token: %s", err.Error()))
 		return
 	}
 
@@ -225,7 +225,7 @@ func (h *ConsoleHandler) HandleListConsoles(c *gin.Context) {
 		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
 			"error": err.Error(),
 		})
-		utils.Response.Unauthorized(c, "Invalid OIDC token")
+		utils.Response.Unauthorized(c, fmt.Sprintf("Invalid OIDC token: %s", err.Error()))
 		return
 	}
 
@@ -424,7 +424,10 @@ func (h *ConsoleHandler) cleanupExpiredResources() {
 
 // validateOIDCAccessToken OIDC Access Token을 userinfo 엔드포인트로 검증
 func (h *ConsoleHandler) validateOIDCAccessToken(ctx context.Context, accessToken string) (*OIDCUserInfo, error) {
-	// Keycloak userinfo 엔드포인트 URL 구성
+	if err := checkTokenExpiration(accessToken); err != nil {
+		return nil, err
+	}
+
 	issuerURL := os.Getenv("OIDC_ISSUER_URL")
 	if issuerURL == "" {
 		return nil, fmt.Errorf("OIDC_ISSUER_URL environment variable is required")
@@ -458,6 +461,39 @@ func (h *ConsoleHandler) validateOIDCAccessToken(ctx context.Context, accessToke
 	return &userInfo, nil
 }
 
+// checkTokenExpiration JWT 토큰의 만료 시간을 확인 (서명 검증 없이 클레임만 확인)
+func checkTokenExpiration(token string) error {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return fmt.Errorf("invalid token format")
+	}
+
+	// JWT payload 디코딩
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return fmt.Errorf("failed to decode token payload: %v", err)
+	}
+
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return fmt.Errorf("failed to parse token claims: %v", err)
+	}
+
+	// 만료 시간 확인
+	if claims.Exp == 0 {
+		return fmt.Errorf("token does not contain expiration claim")
+	}
+
+	expirationTime := time.Unix(claims.Exp, 0)
+	if time.Now().After(expirationTime) {
+		return fmt.Errorf("token has expired at %s", expirationTime.Format(time.RFC3339))
+	}
+
+	return nil
+}
+
 // HandleDeleteUserResources 사용자별 모든 Web Console 리소스 삭제
 func (h *ConsoleHandler) HandleDeleteUserResources(c *gin.Context) {
 	ctx := context.Background()
@@ -477,7 +513,7 @@ func (h *ConsoleHandler) HandleDeleteUserResources(c *gin.Context) {
 		logger.WarnWithContext(c.Request.Context(), "Failed to verify OIDC token", map[string]any{
 			"error": err.Error(),
 		})
-		utils.Response.Unauthorized(c, "Invalid OIDC token")
+		utils.Response.Unauthorized(c, fmt.Sprintf("Invalid OIDC token - %s", err.Error()))
 		return
 	}
 

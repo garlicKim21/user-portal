@@ -24,6 +24,58 @@ export interface ApiResponse<T> {
 }
 
 /**
+ * URL이 실제로 응답 가능한 상태인지 확인합니다.
+ * @param url 확인할 URL
+ * @param maxRetries 최대 재시도 횟수 (기본값: 3)
+ * @param retryInterval 재시도 간격(ms) (기본값: 2000)
+ * @returns Promise<boolean>
+ */
+export async function verifyTerminalReady(
+  url: string,
+  maxRetries: number = 3,
+  retryInterval: number = 2000
+): Promise<boolean> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[TerminalService] Verifying terminal readiness (attempt ${attempt}/${maxRetries}): ${url}`);
+
+      // HEAD 요청으로 가볍게 확인
+      const response = await fetch(url, {
+        method: 'HEAD',
+        mode: 'no-cors', // CORS 에러를 피하기 위해
+        cache: 'no-cache',
+      });
+
+      // no-cors 모드에서는 response.ok를 신뢰할 수 없으므로
+      // type이 'opaque'이면 요청은 성공한 것으로 간주
+      if (response.type === 'opaque') {
+        console.log(`[TerminalService] Terminal is ready at ${url}`);
+        return true;
+      }
+
+      // 일반 CORS 응답인 경우
+      if (response.ok) {
+        console.log(`[TerminalService] Terminal is ready at ${url} (status: ${response.status})`);
+        return true;
+      }
+
+      console.log(`[TerminalService] Terminal not ready yet (status: ${response.status})`);
+    } catch (error) {
+      console.log(`[TerminalService] Terminal verification failed (attempt ${attempt}/${maxRetries}):`, error);
+    }
+
+    // 마지막 시도가 아니면 대기 후 재시도
+    if (attempt < maxRetries) {
+      console.log(`[TerminalService] Waiting ${retryInterval}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, retryInterval));
+    }
+  }
+
+  console.warn(`[TerminalService] Terminal not ready after ${maxRetries} attempts`);
+  return false;
+}
+
+/**
  * 웹 터미널을 시작합니다.
  * @returns Promise<TerminalLaunchResponse>
  */
@@ -42,14 +94,28 @@ export async function launchTerminal(): Promise<TerminalLaunchResponse> {
   }
 
   const data = await response.json();
-  
+
   if (!data.data || !data.data.url) {
     throw new Error('Terminal URL not received from server');
   }
 
+  const terminalUrl = data.data.url;
+  const resourceId = data.data.resourceId || '';
+
+  console.log(`[TerminalService] Terminal URL received: ${terminalUrl}`);
+  console.log(`[TerminalService] Resource ID: ${resourceId}`);
+
+  // URL 유효성 확인 (최대 3번 재시도, 2초 간격)
+  const isReady = await verifyTerminalReady(terminalUrl, 3, 2000);
+
+  if (!isReady) {
+    console.warn(`[TerminalService] Terminal URL may not be fully ready, but returning anyway`);
+    // 경고는 하지만 URL은 반환 (사용자가 직접 재시도할 수 있음)
+  }
+
   return {
-    url: data.data.url,
-    resourceId: data.data.resourceId || '',
+    url: terminalUrl,
+    resourceId: resourceId,
   };
 }
 

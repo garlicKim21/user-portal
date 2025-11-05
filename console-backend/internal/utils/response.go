@@ -3,6 +3,7 @@ package utils
 import (
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -96,7 +97,15 @@ func (r *ResponseHelper) NotFound(c *gin.Context, resource string) {
 
 // Unauthorized 401 에러 응답
 func (r *ResponseHelper) Unauthorized(c *gin.Context, message string) {
-	err := models.ErrInvalidCredentials.WithDetails(message)
+	var err *models.APIError
+
+	// 메시지에 "token has expired"가 포함되어 있으면 ErrTokenExpired 사용
+	if strings.Contains(strings.ToLower(message), "token has expired") {
+		err = models.ErrTokenExpired.WithDetails(message)
+	} else {
+		err = models.ErrInvalidCredentials.WithDetails(message)
+	}
+
 	r.Error(c, err)
 }
 

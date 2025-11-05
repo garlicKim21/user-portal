@@ -12,6 +12,7 @@ import { backendAuthService } from '../services/backendAuthService';
 import { ProjectSelector } from './ProjectSelector';
 import { UserInfo } from './UserInfo';
 import { AppUser, UserProject } from '../types/user';
+import { verifyTerminalReady } from '../services/terminalService';
 
 interface DashboardProps {
   user: AppUser;
@@ -81,18 +82,24 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
     try {
       setIsLoading(true);
       setError(null);
-      
+
+      console.log('[Dashboard] Launching web console...');
       const result = await backendAuthService.launchWebConsole(user.access_token);
-      
-      setSuccess('Web Console이 성공적으로 실행되었습니다!');
-      
-      // 1초 후 새 탭에서 열기
-      setTimeout(() => {
-        window.open(result.url, '_blank');
-      }, 1000);
-      
+      const is_ready = await verifyTerminalReady(result.url);
+      if (is_ready) {
+        setSuccess('Web Console이 성공적으로 준비되었습니다! 새 탭에서 열립니다...');
+        console.log('[Dashboard] Opening terminal in new tab:', result.url);
+        
+        const newWindow = window.open(result.url, '_blank');
+
+        if (!newWindow) {
+          setError('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.');
+        }
+      } else {
+        setError('Web Terminal 생성이 실패하였거나 네트워크 문제로 접속할 수 없습니다. 관리자에게 연락 바랍니다.');
+      }
     } catch (error) {
-      console.error('Failed to launch web console:', error);
+      console.error('[Dashboard] Failed to launch web console:', error);
       setError(`Web Console 실행에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
     } finally {
       setIsLoading(false);
