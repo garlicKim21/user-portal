@@ -1,30 +1,12 @@
-import { useEffect } from 'react';
-import { useAuth } from 'react-oidc-context';
+// Silent callback 페이지
+// react-oidc-context의 UserManager가 자동으로 이 페이지를 iframe으로 로드하고
+// OIDC provider로부터 받은 토큰을 처리합니다.
+//
+// 중요: 이 페이지에서는 signinSilent()를 호출하면 안 됩니다!
+// UserManager가 iframe 내부에서 자동으로 토큰을 처리하고 부모 창에 전달합니다.
 
 export function SilentCallback() {
-  const { signinSilent } = useAuth();
-
-  useEffect(() => {
-    // Silent callback 처리
-    const handleSilentCallback = async () => {
-      try {
-        console.log('Silent 콜백 처리 시작...');
-        await signinSilent();
-        console.log('Silent 콜백 처리 완료');
-      } catch (error) {
-        console.error('Silent 콜백 처리 중 오류:', error);
-      }
-    };
-
-    handleSilentCallback();
-  }, [signinSilent]);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">세션 갱신 중...</p>
-      </div>
-    </div>
-  );
+  // react-oidc-context가 자동으로 처리하므로 아무것도 렌더링하지 않음
+  // 또는 최소한의 로딩 인디케이터만 표시 (사용자는 볼 수 없음 - iframe 안에 있음)
+  return null;
 }

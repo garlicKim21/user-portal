@@ -14,13 +14,16 @@ export const oidcConfig = {
   silent_redirect_uri: window.location.origin + '/silent-callback',
   // 로그 레벨 설정
   logLevel: 'debug' as const,
-  // 추가 설정
-  checkSessionInterval: 2000,
+  checkSessionInterval: 15000,  // 15초로 변경
+  // 토큰 만료 알림 시간 (초 단위) - 토큰 만료 60초 전에 갱신 시도
+  // 주의: Keycloak의 Access Token Lifespan보다 작아야 함
+  accessTokenExpiringNotificationTime: 60,
+
+  // Silent request 타임아웃 (밀리초)
   silentRequestTimeout: 10000,
   // PKCE 비활성화 (client secret 사용)
   pkce: false,
-  // 세션 만료 시간 (30분)
-  accessTokenExpiringNotificationTime: 300,
+
   // 로그아웃 관련 설정
   revokeTokensOnSignout: true,
   includeIdTokenInSilentRenew: true,

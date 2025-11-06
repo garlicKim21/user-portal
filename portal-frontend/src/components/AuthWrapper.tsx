@@ -64,14 +64,80 @@ function getRoleLabel(role: string): string {
 }
 
 export function AuthWrapper() {
-  const { signinRedirect, isAuthenticated, user, isLoading } = useAuth();
+  const auth = useAuth();
+  const { signinRedirect, isAuthenticated, user, isLoading, events } = auth;
   const location = useLocation();
-  
+
   // 상태 관리
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
     currentProject: null
   });
+
+  // 토큰 자동 갱신 이벤트 리스너 추가
+  useEffect(() => {
+    if (!events) return;
+
+    // 토큰이 만료되기 전 이벤트
+    const handleAccessTokenExpiring = () => {
+      console.log('[AuthWrapper] 🔄 토큰이 곧 만료됩니다. 자동 갱신 시도 중...');
+      if (user?.expires_at) {
+        const expiresAt = new Date(user.expires_at * 1000);
+        console.log('[AuthWrapper] 현재 토큰 만료 시간:', expiresAt.toLocaleString());
+      }
+    };
+
+    // 토큰이 만료된 후 이벤트
+    const handleAccessTokenExpired = () => {
+      console.error('[AuthWrapper] ⚠️ 토큰이 만료되었습니다!');
+      console.log('[AuthWrapper] 자동 갱신 실패. 재로그인이 필요할 수 있습니다.');
+    };
+
+    // 토큰이 자동으로 갱신된 후 이벤트
+    const handleUserLoaded = (user: any) => {
+      console.log('[AuthWrapper] ✅ 토큰이 성공적으로 갱신되었습니다!');
+      if (user?.expires_at) {
+        const expiresAt = new Date(user.expires_at * 1000);
+        console.log('[AuthWrapper] 새 토큰 만료 시간:', expiresAt.toLocaleString());
+        const now = new Date();
+        const timeUntilExpiry = Math.floor((expiresAt.getTime() - now.getTime()) / 1000 / 60);
+        console.log(`[AuthWrapper] ${timeUntilExpiry}분 후에 만료됩니다`);
+      }
+    };
+
+    // Silent renew 에러
+    const handleSilentRenewError = (error: Error) => {
+      console.error('[AuthWrapper] ❌ Silent renew 실패:', error);
+      console.error('[AuthWrapper] 에러 상세:', error.message);
+      console.error('[AuthWrapper] 확인사항:');
+      console.error('  1. Keycloak에서 /silent-callback이 Valid Redirect URIs에 등록되어 있는지');
+      console.error('  2. 브라우저에서 third-party cookies가 차단되어 있지 않은지');
+      console.error('  3. Keycloak의 Access Token Lifespan 설정 확인');
+    };
+
+    // 사용자 언로드 (로그아웃)
+    const handleUserUnloaded = () => {
+      console.log('[AuthWrapper] 사용자가 로그아웃되었습니다');
+    };
+
+    // 이벤트 리스너 등록
+    events.addAccessTokenExpiring(handleAccessTokenExpiring);
+    events.addAccessTokenExpired(handleAccessTokenExpired);
+    events.addUserLoaded(handleUserLoaded);
+    events.addSilentRenewError(handleSilentRenewError);
+    events.addUserUnloaded(handleUserUnloaded);
+
+    console.log('[AuthWrapper] 토큰 자동 갱신 이벤트 리스너 등록 완료');
+
+    // 클린업
+    return () => {
+      events.removeAccessTokenExpiring(handleAccessTokenExpiring);
+      events.removeAccessTokenExpired(handleAccessTokenExpired);
+      events.removeUserLoaded(handleUserLoaded);
+      events.removeSilentRenewError(handleSilentRenewError);
+      events.removeUserUnloaded(handleUserUnloaded);
+    };
+  }, [events, user]);
 
   // 사용자 로그인 시 실제 OIDC 토큰 정보와 프로젝트 데이터 결합
   useEffect(() => {
@@ -80,7 +146,16 @@ export function AuthWrapper() {
       console.log('OIDC Profile:', user.profile); // 디버깅용
       console.log('OIDC Groups from profile:', user.profile?.groups); // 디버깅용
       console.log('OIDC Groups from user:', (user as any)?.groups); // 디버깅용
-      
+
+      // 토큰 만료 시간 로그
+      if (user.expires_at) {
+        const expiresAt = new Date(user.expires_at * 1000);
+        console.log('[AuthWrapper] 초기 토큰 만료 시간:', expiresAt.toLocaleString());
+        const now = new Date();
+        const timeUntilExpiry = Math.floor((expiresAt.getTime() - now.getTime()) / 1000 / 60);
+        console.log(`[AuthWrapper] ${timeUntilExpiry}분 후에 만료됩니다`);
+      }
+
       // 실제 OIDC 사용자 정보를 AppUser 타입으로 변환
       const profile = user.profile || {};
       const appUserData: AppUser = {
