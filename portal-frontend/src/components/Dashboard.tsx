@@ -8,11 +8,10 @@ import {
   Building2,
   LogOut
 } from 'lucide-react';
-import { backendAuthService } from '../services/backendAuthService';
 import { ProjectSelector } from './ProjectSelector';
 import { UserInfo } from './UserInfo';
 import { AppUser, UserProject } from '../types/user';
-import { verifyTerminalReady } from '../services/terminalService';
+import {toast} from "sonner";
 
 interface DashboardProps {
   user: AppUser;
@@ -25,7 +24,7 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isTitleClicked, setIsTitleClicked] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, _] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -68,43 +67,18 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
     }
   }, [error, success]);
 
-  const handleMenuClick = (menuId: string, url: string) => {
+  const handleMenuClick = (menuId: string) => {
     setActiveMenu(menuId);
     // 메뉴 클릭 시에는 오른쪽 패널만 변경하고, 실제 실행은 버튼 클릭 시에만
   };
 
-  const handleWebConsoleClick = async () => {
-    if (!user?.access_token) {
-      setError('인증 토큰이 없습니다. 다시 로그인해주세요.');
-      return;
+  const handleWebConsoleClick = () => {
+    const newWindow = window.open('/terminal', '_blank');
+
+    if (!newWindow) {
+      toast.warning("팝업이 차단되었습니다. 브라우저 설정을 확인해주세요.");
     }
-
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      console.log('[Dashboard] Launching web console...');
-      const result = await backendAuthService.launchWebConsole(user.access_token);
-      const is_ready = await verifyTerminalReady(result.url);
-      if (is_ready) {
-        setSuccess('Web Console이 성공적으로 준비되었습니다! 새 탭에서 열립니다...');
-        console.log('[Dashboard] Opening terminal in new tab:', result.url);
-        
-        const newWindow = window.open(result.url, '_blank');
-
-        if (!newWindow) {
-          setError('팝업이 차단되었습니다. 브라우저 설정에서 팝업을 허용해주세요.');
-        }
-      } else {
-        setError('Web Terminal 생성이 실패하였거나 네트워크 문제로 접속할 수 없습니다. 관리자에게 연락 바랍니다.');
-      }
-    } catch (error) {
-      console.error('[Dashboard] Failed to launch web console:', error);
-      setError(`Web Console 실행에 실패했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }
 
   const handleTitleClick = () => {
     setIsTitleClicked(true);
@@ -174,7 +148,7 @@ export function Dashboard({ user, currentProject, onProjectChange, onLogout }: D
                       ? 'bg-sidebar-primary text-sidebar-primary-foreground' 
                       : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
                   }`}
-                  onClick={() => handleMenuClick(item.id, item.url)}
+                  onClick={() => handleMenuClick(item.id)}
                 >
                   <img 
                     src={item.logo} 

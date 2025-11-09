@@ -42,16 +42,16 @@ export async function verifyTerminalReady(
       // HEAD 요청으로 가볍게 확인
       const response = await fetch(url, {
         method: 'HEAD',
-        mode: 'no-cors', // CORS 에러를 피하기 위해
+        // mode: 'no-cors', // local dev only, dev 및 prod 사용 금지
         cache: 'no-cache',
       });
+      // console.log(response);
 
-      // no-cors 모드에서는 response.ok를 신뢰할 수 없으므로
-      // type이 'opaque'이면 요청은 성공한 것으로 간주
-      if (response.type === 'opaque') {
-        console.log(`[TerminalService] Terminal is ready at ${url}`);
-        return true;
-      }
+      // local dev only, dev 및 prod 사용 금지
+      // if (response.type === 'opaque') {
+      //   console.log(`[TerminalService] Terminal is ready at ${url}`);
+      //   return true;
+      // }
 
       // 일반 CORS 응답인 경우
       if (response.ok) {
@@ -67,7 +67,7 @@ export async function verifyTerminalReady(
     // 마지막 시도가 아니면 대기 후 재시도
     if (attempt < maxRetries) {
       console.log(`[TerminalService] Waiting ${retryInterval}ms before retry...`);
-      await new Promise(resolve => setTimeout(resolve, retryInterval));
+      await new Promise(resolve => setTimeout(resolve, retryInterval + (attempt * 1000)));
     }
   }
 
