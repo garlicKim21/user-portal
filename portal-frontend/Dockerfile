@@ -1,5 +1,5 @@
 # 멀티 스테이지 빌드를 위한 Node.js 베이스 이미지
-FROM --platform=$BUILDPLATFORM node:18-alpine AS builder
+FROM --platform=$BUILDPLATFORM node:24.10.0-alpine AS builder
 
 # 작업 디렉토리 설정
 WORKDIR /app
