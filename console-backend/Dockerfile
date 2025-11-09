@@ -1,5 +1,5 @@
 # Go 애플리케이션을 위한 Dockerfile
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25.4-alpine AS builder
 
 # 작업 디렉토리 설정
 WORKDIR /app
